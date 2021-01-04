@@ -1,10 +1,20 @@
-# Swaggin
+# ginapi
 
-Swaggin is a dead simple code generator for generating server/client code from your Swagger files, targeting the Gin web
+Ginapi is a dead simple code generator for generating server/client code from your OpenAPI files, targeting the Gin web
 framework.
 
-It's dead simple, for just adapting the results of the `go-swagger` target and trying to make things more strongly
-typed.
+## Ideas
+
+* Just adapt the results from `go-gin-server` target of `openapi-generator-cli`, so:
+    * Don't parse the YAML/JSON specs
+    * Parse the generated code with `go/parser`
+    * Unnecessary to have the generator installed to run this
+* Leave the generated code untouched
+* Use interfaces and default *not-implemented* methods for further implementation
+* Provide better ways to register handlers and routers, in case of middlewares
+* Use [hashicorp/go-retryablehttp] for client code
+
+[hashicorp/go-retryablehttp]: https://github.com/hashicorp/go-retryablehttp
 
 ## License
 

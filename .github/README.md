@@ -6,8 +6,8 @@ framework.
 ## Ideas
 
 * Just adapt the results from `go-gin-server` target of `openapi-generator-cli`, so:
-    * Don't parse the YAML/JSON specs
     * Parse the generated code with `go/parser`
+    * Parse the YAML/JSON specs to complement the `requestBodies`/`responses`
     * Unnecessary to have the generator installed to run this
 * Leave the generated code untouched
 * Use interfaces and default *not-implemented* methods for further implementation

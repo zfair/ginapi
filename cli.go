@@ -8,16 +8,17 @@ import (
 
 var (
 	ErrCliNoInpath = errors.New("expected input path")
+	ErrCliBadMode  = errors.New("bad codegen mode, expected server/client")
 )
 
 type ginapiCli struct {
+	*codegen
+
 	version string
 
 	isHelp    bool
 	isVersion bool
-	inpath    string
-
-	codegen *codegen
+	mode      string
 }
 
 func Cli() *ginapiCli {
@@ -42,6 +43,7 @@ func (c *ginapiCli) Parse() *ginapiCli {
 	flag.BoolVar(&c.isHelp, "h", false, "show help")
 	flag.BoolVar(&c.isVersion, "v", false, "show version")
 	flag.StringVar(&c.inpath, "i", "", "path to OpenAPI generated code as input")
+	flag.StringVar(&c.mode, "m", CodegenModeServer, "server/client code to generate")
 
 	flag.Parse()
 
@@ -51,6 +53,12 @@ func (c *ginapiCli) Parse() *ginapiCli {
 func (c *ginapiCli) validate() error {
 	if c.inpath == "" {
 		return ErrCliNoInpath
+	}
+	if c.mode == "" {
+		return ErrCliBadMode
+	}
+	if _, ok := CodegenModes[c.mode]; !ok {
+		return fmt.Errorf("%w: %s", ErrCliBadMode, c.mode)
 	}
 	return nil
 }
@@ -71,7 +79,7 @@ func (c *ginapiCli) Run() (rc int) {
 		return 1
 	}
 
-	if err := c.codegen.Run(c.inpath); err != nil {
+	if err := c.codegen.Run(); err != nil {
 		fmt.Println("ERROR: codegen:", err)
 		return 1
 	}

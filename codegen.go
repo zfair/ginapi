@@ -24,20 +24,20 @@ var (
 	ErrCodegenInpathNotDir    = errors.New("input path not a directory")
 )
 
-type codegen struct {
-	*parser
+type Codegen struct {
+	*Parser
 
 	outpath string
 	mode    string
 }
 
-func Codegen() *codegen {
-	return &codegen{
-		parser: Parser(),
+func NewCodegen() *Codegen {
+	return &Codegen{
+		Parser: NewParser(),
 	}
 }
 
-func (c *codegen) MkOutpath() error {
+func (c *Codegen) MkOutpath() error {
 	inpath := c.inpath
 
 	info, err := os.Stat(inpath)
@@ -54,11 +54,11 @@ func (c *codegen) MkOutpath() error {
 	return nil
 }
 
-func (c *codegen) Run() error {
+func (c *Codegen) Run() error {
 	if err := c.MkOutpath(); err != nil {
 		return err
 	}
-	if err := c.parser.Parse(); err != nil {
+	if err := c.Parser.Parse(); err != nil {
 		return err
 	}
 	return nil

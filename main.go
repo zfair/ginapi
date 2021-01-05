@@ -7,5 +7,5 @@ var (
 )
 
 func main() {
-	os.Exit(Cli().Parse().Run())
+	os.Exit(NewCli().Parse().Run())
 }

@@ -11,8 +11,8 @@ var (
 	ErrCliBadMode  = errors.New("bad codegen mode, expected server/client")
 )
 
-type ginapiCli struct {
-	*codegen
+type GinapiCli struct {
+	*Codegen
 
 	version string
 
@@ -21,23 +21,23 @@ type ginapiCli struct {
 	mode      string
 }
 
-func Cli() *ginapiCli {
-	return &ginapiCli{
+func NewCli() *GinapiCli {
+	return &GinapiCli{
 		version: version,
-		codegen: Codegen(),
+		Codegen: NewCodegen(),
 	}
 }
 
-func (*ginapiCli) showUsage() {
+func (*GinapiCli) showUsage() {
 	fmt.Print("ginapi is a dead simple OpenAPI codegen for Gin.\n\n")
 	flag.PrintDefaults()
 }
 
-func (c *ginapiCli) showVersion() {
+func (c *GinapiCli) showVersion() {
 	fmt.Printf("ginapi v%s\n", c.version)
 }
 
-func (c *ginapiCli) Parse() *ginapiCli {
+func (c *GinapiCli) Parse() *GinapiCli {
 	flag.Usage = c.showUsage
 
 	flag.BoolVar(&c.isHelp, "h", false, "show help")
@@ -50,7 +50,7 @@ func (c *ginapiCli) Parse() *ginapiCli {
 	return c
 }
 
-func (c *ginapiCli) validate() error {
+func (c *GinapiCli) validate() error {
 	if c.inpath == "" {
 		return ErrCliNoInpath
 	}
@@ -63,7 +63,7 @@ func (c *ginapiCli) validate() error {
 	return nil
 }
 
-func (c *ginapiCli) Run() (rc int) {
+func (c *GinapiCli) Run() (rc int) {
 	if c.isHelp {
 		flag.Usage()
 		return
@@ -79,7 +79,7 @@ func (c *ginapiCli) Run() (rc int) {
 		return 1
 	}
 
-	if err := c.codegen.Run(); err != nil {
+	if err := c.Codegen.Run(); err != nil {
 		fmt.Println("ERROR: codegen:", err)
 		return 1
 	}

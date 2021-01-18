@@ -12,11 +12,16 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
+const (
+	mimeJSON = "application/json"
+)
+
 var (
-	ErrParserBadSpecs       = errors.New("bad specs")
-	ErrParserNoSchema       = errors.New("no schema specified")
-	ErrParserBadParamKind   = errors.New("bad parameter kind")
-	ErrParserBadParamSchema = errors.New("bad parameter schema")
+	ErrParserBadSpecs         = errors.New("bad specs")
+	ErrParserNoSchema         = errors.New("no schema specified")
+	ErrParserBadParamKind     = errors.New("bad parameter kind")
+	ErrParserBadParamSchema   = errors.New("bad parameter schema")
+	ErrParserBadRequestSchema = errors.New("bad request body schema")
 )
 
 type Parser struct {
@@ -35,7 +40,7 @@ type ServiceInfo struct {
 }
 
 type ServiceMethod struct {
-	Method      string
+	Name        string
 	PathVars    []*PathVar
 	Queries     []*Query
 	RequestBody string
@@ -137,7 +142,7 @@ func (p *Parser) parseMethodNames(path string, file *goast.File) error {
 			continue
 		}
 		method := &ServiceMethod{
-			Method: name,
+			Name: name,
 		}
 		serviceInfo.Methods[name] = method
 		p.methods[name] = method
@@ -193,21 +198,27 @@ func (p *Parser) parseOperation(op *openapi3.Operation) error {
 	}
 
 	for _, param := range op.Parameters {
-		if err := p.parserParam(method, param.Value); err != nil {
+		if err := p.parseParam(method, param.Value); err != nil {
 			return err
 		}
 	}
 
+	if err := p.parseBody(method, op.RequestBody); err != nil {
+		return err
+	}
+
+	// TODO: Parse validation.
+
 	return nil
 }
 
-func (p *Parser) parserParam(method *ServiceMethod, param *openapi3.Parameter) error {
+func (p *Parser) parseParam(method *ServiceMethod, param *openapi3.Parameter) error {
 	name := param.Name
 	schema := param.Schema
 
 	if schema == nil {
 		// NOTE: Only parses JSON schema.
-		jsonSchema := param.Content.Get("application/json")
+		jsonSchema := param.Content.Get(mimeJSON)
 		if jsonSchema == nil {
 			return fmt.Errorf("%w: %s", ErrParserNoSchema, name)
 		}
@@ -217,7 +228,7 @@ func (p *Parser) parserParam(method *ServiceMethod, param *openapi3.Parameter) e
 	ty, err := OapiToGoType(schema)
 	if err != nil {
 		return fmt.Errorf("%w: cannot get Go type from param '%s/%s': %v",
-			ErrParserBadParamSchema, method.Method, name, err)
+			ErrParserBadParamSchema, method.Name, name, err)
 	}
 
 	switch in := param.In; in {
@@ -235,7 +246,35 @@ func (p *Parser) parserParam(method *ServiceMethod, param *openapi3.Parameter) e
 		return fmt.Errorf("%w: %s", ErrParserBadParamKind, in)
 	}
 
-	// TODO: Parse requestBodies.
+	return nil
+}
 
+func (p *Parser) parseBody(method *ServiceMethod, body *openapi3.RequestBodyRef) error {
+	if body == nil {
+		return nil
+	}
+
+	m := method.Name
+
+	jsonSchema := body.Value.Content.Get(mimeJSON)
+	if jsonSchema == nil {
+		return fmt.Errorf("%w: request body of method %q", ErrParserNoSchema, m)
+	}
+	ref := jsonSchema.Schema.Ref
+
+	if ref == "" {
+		return fmt.Errorf("%w: request body of method %q", ErrUtilUseRef, m)
+	}
+
+	t, err := OapiRefToGoType(ref)
+	if err != nil {
+		return fmt.Errorf("%w: method %q: %v", ErrParserBadRequestSchema, m, err)
+	}
+	if strings.HasPrefix(t, "Inline_object") {
+		return fmt.Errorf("%w: request body %q of method %q: %v",
+			ErrParserBadRequestSchema, t, m, ErrUtilUseRef)
+	}
+
+	method.RequestBody = t
 	return nil
 }

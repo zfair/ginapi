@@ -207,6 +207,8 @@ func (p *Parser) parseOperation(op *openapi3.Operation) error {
 		return err
 	}
 
+	// TODO: Parse responses.
+
 	// TODO: Parse validation.
 
 	return nil

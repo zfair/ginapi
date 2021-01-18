@@ -6,21 +6,23 @@ import (
 	goast "go/ast"
 	goparser "go/parser"
 	gotoken "go/token"
-	"io/ioutil"
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"github.com/getkin/kin-openapi/openapi3"
 )
 
 var (
-	ErrParserBadYaml = errors.New("bad yaml specs")
+	ErrParserBadSpecs       = errors.New("bad specs")
+	ErrParserNoSchema       = errors.New("no schema specified")
+	ErrParserBadParamKind   = errors.New("bad parameter kind")
+	ErrParserBadParamSchema = errors.New("bad parameter schema")
 )
 
 type Parser struct {
 	inpath   string
 	srcpath  string
-	yamlpath string
+	specpath string
 
 	services   map[string]*ServiceInfo
 	methods    map[string]*ServiceMethod
@@ -34,10 +36,15 @@ type ServiceInfo struct {
 
 type ServiceMethod struct {
 	Method      string
-	PathVars    []string
+	PathVars    []*PathVar
 	Queries     []*Query
 	RequestBody string
 	Response    string
+}
+
+type PathVar struct {
+	Var  string
+	Type string
 }
 
 type Query struct {
@@ -54,7 +61,7 @@ func NewParser() *Parser {
 
 func (p *Parser) Parse() error {
 	p.srcpath = filepath.Join(p.inpath, "go")
-	p.yamlpath = filepath.Join(p.inpath, "api", "openapi.yaml")
+	p.specpath = filepath.Join(p.inpath, "api", "openapi.yaml")
 
 	if err := p.parseGo(); err != nil {
 		return err
@@ -149,65 +156,23 @@ func (p *Parser) parseRouters(file *goast.File) error {
 	return nil
 }
 
-type Specs map[interface{}]interface{}
-
-func (specs Specs) GetAPIs() ([]Specs, error) {
-	var ret []Specs
-	rawPaths, ok := specs["paths"]
-
-	if !ok {
-		return nil, fmt.Errorf("%w: key \"paths\" not exists", ErrParserBadYaml)
-	}
-	paths, ok := rawPaths.(Specs)
-	if !ok {
-		return nil, fmt.Errorf("%w: key \"paths\" not a map", ErrParserBadYaml)
-	}
-
-	for _, rawPath := range paths {
-		path, ok := rawPath.(Specs)
-		if !ok {
-			return nil, fmt.Errorf(
-				"%w: key %q not a map",
-				ErrParserBadYaml,
-				rawPath,
-			)
-		}
-
-		for _, rawInfo := range path {
-			info, ok := rawInfo.(Specs)
-			if !ok {
-				return nil, fmt.Errorf(
-					"%w: key %q not a map",
-					ErrParserBadYaml,
-					rawInfo,
-				)
-			}
-
-			ret = append(ret, info)
-		}
-	}
-
-	return ret, nil
-}
-
 func (p *Parser) parseYaml() error {
-	file, err := ioutil.ReadFile(p.yamlpath)
+	swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromFile(p.specpath)
 	if err != nil {
 		return err
 	}
 
-	specs := make(Specs)
-	if err := yaml.Unmarshal(file, &specs); err != nil {
-		return err
-	}
-
-	apis, err := specs.GetAPIs()
-	if err != nil {
-		return err
-	}
-
-	for _, api := range apis {
-		if err := p.parseMethodInfo(api); err != nil {
+	for _, pathItem := range swagger.Paths {
+		if err := p.parseOperation(pathItem.Get); err != nil {
+			return err
+		}
+		if err := p.parseOperation(pathItem.Post); err != nil {
+			return err
+		}
+		if err := p.parseOperation(pathItem.Put); err != nil {
+			return err
+		}
+		if err := p.parseOperation(pathItem.Delete); err != nil {
 			return err
 		}
 	}
@@ -215,26 +180,62 @@ func (p *Parser) parseYaml() error {
 	return nil
 }
 
-func (p *Parser) parseMethodInfo(api Specs) error {
-	id, ok := api["operationId"]
-	if !ok {
-		return fmt.Errorf(
-			"%w: key \"operationId\" not exists",
-			ErrParserBadYaml,
-		)
+func (p *Parser) parseOperation(op *openapi3.Operation) error {
+	if op == nil {
+		return nil
 	}
 
-	methodName := strings.Title(id.(string))
-	method, ok := p.methods[methodName]
+	id := strings.Title(op.OperationID)
+	method, ok := p.methods[id]
 	if !ok {
-		return fmt.Errorf(
-			"%w: method %q not exists",
-			ErrParserBadYaml,
-			methodName,
-		)
+		return fmt.Errorf("%w: operation %q not found in generated code",
+			ErrParserBadSpecs, id)
 	}
 
-	// TODO
-	fmt.Println(method)
+	for _, param := range op.Parameters {
+		if err := p.parserParam(method, param.Value); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (p *Parser) parserParam(method *ServiceMethod, param *openapi3.Parameter) error {
+	name := param.Name
+	schema := param.Schema
+
+	if schema == nil {
+		// NOTE: Only parses JSON schema.
+		jsonSchema := param.Content.Get("application/json")
+		if jsonSchema == nil {
+			return fmt.Errorf("%w: %s", ErrParserNoSchema, name)
+		}
+		schema = jsonSchema.Schema
+	}
+
+	ty, err := OapiToGoType(schema)
+	if err != nil {
+		return fmt.Errorf("%w: cannot get Go type from param '%s/%s': %v",
+			ErrParserBadParamSchema, method.Method, name, err)
+	}
+
+	switch in := param.In; in {
+	case "path":
+		method.PathVars = append(method.PathVars, &PathVar{
+			Var:  name,
+			Type: ty,
+		})
+	case "query":
+		method.Queries = append(method.Queries, &Query{
+			Key:  name,
+			Kind: ty,
+		})
+	default:
+		return fmt.Errorf("%w: %s", ErrParserBadParamKind, in)
+	}
+
+	// TODO: Parse requestBodies.
+
 	return nil
 }

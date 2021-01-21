@@ -68,3 +68,10 @@ func OapiToGoType(ref *openapi3.SchemaRef) (string, error) {
 
 	return "", fmt.Errorf("%w: %s", ErrUtilBadOapiSchemaType, schema.Type)
 }
+
+func OapiToGinPathParam(param string) (ret string) {
+	ret = param
+	ret = strings.ReplaceAll(ret, "{", ":")
+	ret = strings.ReplaceAll(ret, "}", "")
+	return
+}

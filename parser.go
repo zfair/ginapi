@@ -6,10 +6,12 @@ import (
 	goast "go/ast"
 	goparser "go/parser"
 	gotoken "go/token"
+	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 
-	"github.com/getkin/kin-openapi/openapi3"
+	oapi "github.com/getkin/kin-openapi/openapi3"
 )
 
 const (
@@ -19,6 +21,7 @@ const (
 var (
 	ErrParserBadSpecs         = errors.New("bad specs")
 	ErrParserNoSchema         = errors.New("no schema specified")
+	ErrParserNoRootUrl        = errors.New("no root URL specified")
 	ErrParserBadParamKind     = errors.New("bad parameter kind")
 	ErrParserBadParamSchema   = errors.New("bad parameter schema")
 	ErrParserBadRequestSchema = errors.New("bad request body schema")
@@ -29,6 +32,7 @@ type Parser struct {
 	srcpath  string
 	specpath string
 
+	rootURL    string
 	services   map[string]*ServiceInfo
 	methods    map[string]*ServiceMethod
 	modelPaths []string
@@ -40,6 +44,8 @@ type ServiceInfo struct {
 }
 
 type ServiceMethod struct {
+	Path        string
+	HttpMethod  string
 	Name        string
 	PathVars    []*PathVar
 	Queries     []*Query
@@ -107,9 +113,6 @@ func (p *Parser) parseFile(path string, file *goast.File) error {
 		p.collectModel(path)
 		return nil
 	}
-	if filename == "routers.go" {
-		return p.parseRouters(file)
-	}
 
 	return nil
 }
@@ -156,28 +159,27 @@ func (p *Parser) collectModel(path string) {
 	p.modelPaths = append(p.modelPaths, path)
 }
 
-func (p *Parser) parseRouters(file *goast.File) error {
-	// TODO
-	return nil
-}
-
 func (p *Parser) parseYaml() error {
-	swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromFile(p.specpath)
+	swagger, err := oapi.NewSwaggerLoader().LoadSwaggerFromFile(p.specpath)
 	if err != nil {
 		return err
 	}
 
-	for _, pathItem := range swagger.Paths {
-		if err := p.parseOperation(pathItem.Get); err != nil {
+	if err := p.parseRootURL(swagger.Servers); err != nil {
+		return err
+	}
+
+	for path, item := range swagger.Paths {
+		if err := p.parseOperation(item.Get, path, http.MethodGet); err != nil {
 			return err
 		}
-		if err := p.parseOperation(pathItem.Post); err != nil {
+		if err := p.parseOperation(item.Post, path, http.MethodPost); err != nil {
 			return err
 		}
-		if err := p.parseOperation(pathItem.Put); err != nil {
+		if err := p.parseOperation(item.Put, path, http.MethodPut); err != nil {
 			return err
 		}
-		if err := p.parseOperation(pathItem.Delete); err != nil {
+		if err := p.parseOperation(item.Delete, path, http.MethodDelete); err != nil {
 			return err
 		}
 	}
@@ -185,7 +187,21 @@ func (p *Parser) parseYaml() error {
 	return nil
 }
 
-func (p *Parser) parseOperation(op *openapi3.Operation) error {
+func (p *Parser) parseRootURL(servers []*oapi.Server) error {
+	if len(servers) == 0 {
+		return ErrParserNoRootUrl
+	}
+
+	rootURL, err := url.Parse(servers[0].URL)
+	if err != nil {
+		return err
+	}
+
+	p.rootURL = rootURL.Path
+	return nil
+}
+
+func (p *Parser) parseOperation(op *oapi.Operation, path, httpMethod string) error {
 	if op == nil {
 		return nil
 	}
@@ -197,6 +213,9 @@ func (p *Parser) parseOperation(op *openapi3.Operation) error {
 			ErrParserBadSpecs, id)
 	}
 
+	method.Path = p.rootURL + OapiToGinPathParam(path)
+	method.HttpMethod = httpMethod
+
 	for _, param := range op.Parameters {
 		if err := p.parseParam(method, param.Value); err != nil {
 			return err
@@ -207,22 +226,25 @@ func (p *Parser) parseOperation(op *openapi3.Operation) error {
 		return err
 	}
 
-	// TODO: Parse responses.
+	if err := p.parseResponses(method, op.Responses); err != nil {
+		return err
+	}
 
 	// TODO: Parse validation.
 
 	return nil
 }
 
-func (p *Parser) parseParam(method *ServiceMethod, param *openapi3.Parameter) error {
+func (p *Parser) parseParam(method *ServiceMethod, param *oapi.Parameter) error {
+	m := method.Name
 	name := param.Name
 	schema := param.Schema
 
 	if schema == nil {
-		// NOTE: Only parses JSON schema.
+		// TODO: Only parses JSON schema now.
 		jsonSchema := param.Content.Get(mimeJSON)
 		if jsonSchema == nil {
-			return fmt.Errorf("%w: %s", ErrParserNoSchema, name)
+			return fmt.Errorf("%w: parameter %q of method %q", ErrParserNoSchema, name, m)
 		}
 		schema = jsonSchema.Schema
 	}
@@ -230,7 +252,7 @@ func (p *Parser) parseParam(method *ServiceMethod, param *openapi3.Parameter) er
 	ty, err := OapiToGoType(schema)
 	if err != nil {
 		return fmt.Errorf("%w: cannot get Go type from param '%s/%s': %v",
-			ErrParserBadParamSchema, method.Name, name, err)
+			ErrParserBadParamSchema, m, name, err)
 	}
 
 	switch in := param.In; in {
@@ -251,13 +273,14 @@ func (p *Parser) parseParam(method *ServiceMethod, param *openapi3.Parameter) er
 	return nil
 }
 
-func (p *Parser) parseBody(method *ServiceMethod, body *openapi3.RequestBodyRef) error {
+func (p *Parser) parseBody(method *ServiceMethod, body *oapi.RequestBodyRef) error {
 	if body == nil {
 		return nil
 	}
 
 	m := method.Name
 
+	// TODO
 	jsonSchema := body.Value.Content.Get(mimeJSON)
 	if jsonSchema == nil {
 		return fmt.Errorf("%w: request body of method %q", ErrParserNoSchema, m)
@@ -270,7 +293,7 @@ func (p *Parser) parseBody(method *ServiceMethod, body *openapi3.RequestBodyRef)
 
 	t, err := OapiRefToGoType(ref)
 	if err != nil {
-		return fmt.Errorf("%w: method %q: %v", ErrParserBadRequestSchema, m, err)
+		return fmt.Errorf("%w: request body of method %q: %v", ErrParserBadRequestSchema, m, err)
 	}
 	if strings.HasPrefix(t, "Inline_object") {
 		return fmt.Errorf("%w: request body %q of method %q: %v",
@@ -278,5 +301,36 @@ func (p *Parser) parseBody(method *ServiceMethod, body *openapi3.RequestBodyRef)
 	}
 
 	method.RequestBody = t
+	return nil
+}
+
+func (p *Parser) parseResponses(method *ServiceMethod, resps oapi.Responses) error {
+	m := method.Name
+
+	// TODO: Only 200 response is supported now, maybe we can use an interface
+	// for all possible response schemas on 200, 400, etc. But hey, we don't
+	// have sealed classes in Go :(
+	resp := resps.Get(200)
+	if resp == nil {
+		return fmt.Errorf("%w: no 200 response given in method %q", ErrParserNoSchema, m)
+	}
+
+	// TODO
+	jsonSchema := resp.Value.Content.Get(mimeJSON)
+	if jsonSchema == nil {
+		return fmt.Errorf("%w: response of method %q", ErrParserNoSchema, m)
+	}
+
+	ref := jsonSchema.Schema.Ref
+	if ref == "" {
+		return fmt.Errorf("%w: response of method %q", ErrUtilUseRef, m)
+	}
+
+	t, err := OapiRefToGoType(ref)
+	if err != nil {
+		return fmt.Errorf("%w: response schema of method %q: %v", ErrParserBadRequestSchema, m, err)
+	}
+
+	method.Response = t
 	return nil
 }

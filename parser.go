@@ -33,9 +33,11 @@ type Parser struct {
 	specpath string
 
 	rootURL    string
-	services   map[string]*ServiceInfo
-	methods    map[string]*ServiceMethod
 	modelPaths []string
+	methods    map[string]*ServiceMethod
+
+	// Used for template rendering, the 'true' AST.
+	Services map[string]*ServiceInfo
 }
 
 type ServiceInfo struct {
@@ -65,7 +67,7 @@ type Query struct {
 
 func NewParser() *Parser {
 	return &Parser{
-		services: make(map[string]*ServiceInfo),
+		Services: make(map[string]*ServiceInfo),
 		methods:  make(map[string]*ServiceMethod),
 	}
 }
@@ -151,7 +153,7 @@ func (p *Parser) parseMethodNames(path string, file *goast.File) error {
 		p.methods[name] = method
 	}
 
-	p.services[path] = serviceInfo
+	p.Services[path] = serviceInfo
 	return nil
 }
 

@@ -77,8 +77,6 @@ func (todo{{$.Name}}) {{.Name}}(
 
 var (
 	default{{.Name}} {{.Name}} = todo{{.Name}}{}
-
-	default{{.Name}}Gin
 )
 `
 )

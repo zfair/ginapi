@@ -14,6 +14,15 @@ var (
 	ErrUtilBadOapiRef        = errors.New("bad OAPI ref")
 )
 
+func OapiTagToServiceName(tag string) string {
+	parts := strings.Split(tag, " ")
+	for i := 0; i < len(parts); i++ {
+		parts[i] = strings.Title(parts[i])
+	}
+	parts = append(parts, "Service")
+	return strings.Join(parts, "")
+}
+
 func OapiRefToGoType(ref string) (string, error) {
 	parts := strings.Split(ref, "/")
 	l := len(parts)

@@ -41,8 +41,10 @@ type Parser struct {
 }
 
 type ServiceInfo struct {
-	Name    string
-	Methods map[string]*ServiceMethod
+	Filepath string
+	Name     string
+	Methods  map[string]*ServiceMethod
+	Comment  string
 }
 
 type ServiceMethod struct {
@@ -53,16 +55,19 @@ type ServiceMethod struct {
 	Queries     []*Query
 	RequestBody string
 	Response    string
+	Comment     string
 }
 
 type PathVar struct {
-	Var  string
+	Name string
 	Type string
+	Var  string
 }
 
 type Query struct {
-	Key  string
+	Name string
 	Kind string
+	Var  string
 }
 
 func NewParser() *Parser {
@@ -137,9 +142,11 @@ func (path ServicePath) GetServiceName() string {
 }
 
 func (p *Parser) parseMethodNames(path string, file *goast.File) error {
+	serviceName := ServicePath(path).GetServiceName()
 	serviceInfo := &ServiceInfo{
-		Name:    ServicePath(path).GetServiceName(),
-		Methods: make(map[string]*ServiceMethod),
+		Filepath: path,
+		Name:     serviceName,
+		Methods:  make(map[string]*ServiceMethod),
 	}
 
 	for name, obj := range file.Scope.Objects {
@@ -153,7 +160,7 @@ func (p *Parser) parseMethodNames(path string, file *goast.File) error {
 		p.methods[name] = method
 	}
 
-	p.Services[path] = serviceInfo
+	p.Services[serviceName] = serviceInfo
 	return nil
 }
 
@@ -168,6 +175,10 @@ func (p *Parser) parseYaml() error {
 	}
 
 	if err := p.parseRootURL(swagger.Servers); err != nil {
+		return err
+	}
+
+	if err := p.parseServiceComments(swagger.Tags); err != nil {
 		return err
 	}
 
@@ -203,6 +214,19 @@ func (p *Parser) parseRootURL(servers []*oapi.Server) error {
 	return nil
 }
 
+func (p *Parser) parseServiceComments(tags oapi.Tags) error {
+	for _, tag := range tags {
+		serviceName := OapiTagToServiceName(tag.Name)
+		service, ok := p.Services[serviceName]
+		if !ok {
+			return fmt.Errorf("%w: service %q not found in generated code",
+				ErrParserBadSpecs, serviceName)
+		}
+		service.Comment = tag.Description
+	}
+	return nil
+}
+
 func (p *Parser) parseOperation(op *oapi.Operation, path, httpMethod string) error {
 	if op == nil {
 		return nil
@@ -217,6 +241,7 @@ func (p *Parser) parseOperation(op *oapi.Operation, path, httpMethod string) err
 
 	method.Path = p.rootURL + OapiToGinPathParam(path)
 	method.HttpMethod = httpMethod
+	method.Comment = op.Summary
 
 	for _, param := range op.Parameters {
 		if err := p.parseParam(method, param.Value); err != nil {
@@ -260,13 +285,15 @@ func (p *Parser) parseParam(method *ServiceMethod, param *oapi.Parameter) error 
 	switch in := param.In; in {
 	case "path":
 		method.PathVars = append(method.PathVars, &PathVar{
-			Var:  name,
+			Name: name,
 			Type: ty,
+			Var:  strings.Title(name),
 		})
 	case "query":
 		method.Queries = append(method.Queries, &Query{
-			Key:  name,
+			Name: name,
 			Kind: ty,
+			Var:  strings.Title(name),
 		})
 	default:
 		return fmt.Errorf("%w: %s", ErrParserBadParamKind, in)

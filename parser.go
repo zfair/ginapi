@@ -43,31 +43,34 @@ type Parser struct {
 type ServiceInfo struct {
 	Filepath string
 	Name     string
+	Var      string
 	Methods  map[string]*ServiceMethod
 	Comment  string
 }
 
 type ServiceMethod struct {
+	Receiver string
+	Name     string
+	Comment  string
+
 	Path        string
 	HttpMethod  string
-	Name        string
 	PathVars    []*PathVar
 	Queries     []*Query
 	RequestBody string
 	Response    string
-	Comment     string
 }
 
 type PathVar struct {
-	Name string
-	Type string
-	Var  string
+	Name  string
+	Type  string
+	Field string
 }
 
 type Query struct {
-	Name string
-	Kind string
-	Var  string
+	Name  string
+	Kind  string
+	Field string
 }
 
 func NewParser() *Parser {
@@ -146,6 +149,7 @@ func (p *Parser) parseMethodNames(path string, file *goast.File) error {
 	serviceInfo := &ServiceInfo{
 		Filepath: path,
 		Name:     serviceName,
+		Var:      serviceName,
 		Methods:  make(map[string]*ServiceMethod),
 	}
 
@@ -239,9 +243,9 @@ func (p *Parser) parseOperation(op *oapi.Operation, path, httpMethod string) err
 			ErrParserBadSpecs, id)
 	}
 
+	method.Comment = op.Summary
 	method.Path = p.rootURL + OapiToGinPathParam(path)
 	method.HttpMethod = httpMethod
-	method.Comment = op.Summary
 
 	for _, param := range op.Parameters {
 		if err := p.parseParam(method, param.Value); err != nil {
@@ -285,15 +289,15 @@ func (p *Parser) parseParam(method *ServiceMethod, param *oapi.Parameter) error 
 	switch in := param.In; in {
 	case "path":
 		method.PathVars = append(method.PathVars, &PathVar{
-			Name: name,
-			Type: ty,
-			Var:  strings.Title(name),
+			Name:  name,
+			Type:  ty,
+			Field: strings.Title(name),
 		})
 	case "query":
 		method.Queries = append(method.Queries, &Query{
-			Name: name,
-			Kind: ty,
-			Var:  strings.Title(name),
+			Name:  name,
+			Kind:  ty,
+			Field: strings.Title(name),
 		})
 	default:
 		return fmt.Errorf("%w: %s", ErrParserBadParamKind, in)

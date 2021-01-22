@@ -29,7 +29,7 @@ func OapiRefToGoType(ref string) (string, error) {
 	if l == 0 {
 		return "", fmt.Errorf("%w: %s", ErrUtilBadOapiRef, ref)
 	}
-	return strings.Title(parts[l-1]), nil
+	return fmt.Sprintf("*%s", strings.Title(parts[l-1])), nil
 }
 
 func OapiToGoType(ref *openapi3.SchemaRef) (string, error) {

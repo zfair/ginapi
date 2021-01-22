@@ -93,7 +93,7 @@ func (todo{{$.Name}}) {{.Name}}(
 }
 {{end}}
 
-func new{{.Name}}Routes(r *gin.Engine) *gin.Engine {
+func new{{.Name}}Routers(r *gin.Engine) *gin.Engine {
 	for _, registry := range default{{.Name}}Registry {
 		var handlers []gin.HandlerFunc
 		for _, h := range registry.PreMain {
@@ -128,8 +128,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// NewRouter creates the main router for all services.
 func NewRouter() *gin.Engine {
 	r := gin.Default()
+{{range .Services}}
+	r = new{{.Name}}Routers(r)
+{{end}}
 	return r
 }
 `
@@ -198,12 +202,15 @@ func (c *Codegen) Generate() error {
 	if err := c.copyModels(); err != nil {
 		return err
 	}
+	if err := c.generateRouters(); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (c *Codegen) generateServices() error {
 	for _, service := range c.Services {
-		tmpl, err := template.New("ginapi").Parse(serviceFileTmpl)
+		tmpl, err := template.New("ginapi-services").Parse(serviceFileTmpl)
 		if err != nil {
 			return err
 		}
@@ -252,5 +259,31 @@ func (c *Codegen) copyModels() error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (c *Codegen) generateRouters() error {
+	// FIXME: Code duplication.
+
+	tmpl, err := template.New("ginapi-routers").Parse(routerFileTmpl)
+	if err != nil {
+		return err
+	}
+
+	buf := bytes.NewBufferString("")
+	if err := tmpl.Execute(buf, c.Parser); err != nil {
+		return fmt.Errorf("text/template: %w", err)
+	}
+
+	output, err := format.Source(buf.Bytes())
+	if err != nil {
+		return fmt.Errorf("gofmt: %w", err)
+	}
+
+	outpath := filepath.Join(c.outpath, "routers.go")
+	if err := ioutil.WriteFile(outpath, output, filePerm); err != nil {
+		return err
+	}
+
 	return nil
 }

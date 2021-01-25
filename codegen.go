@@ -24,15 +24,16 @@ package ginapi
 	commonFileTmpl = tmplFileHeader + `
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
 type ginRegistry struct {
 	HttpMethod string
 	URL string
-	PreMain []gin.HandlerFunc
 	Main gin.HandlerFunc
-	PostMain []gin.HandlerFunc
+	Middlewares []gin.HandlerFunc
 }
 `
 
@@ -69,40 +70,86 @@ type {{.Name}} interface {
 {{range .Methods -}}
 	// {{.Name}} {{.Comment}}
 	{{.Name}}(
-		{{- if .PathVars}}vars {{.Name}}PathVars,{{end -}}
-		{{- if .Queries}}q {{.Name}}Queries,{{end -}}
+		{{- if .PathVars}}vars *{{.Name}}PathVars,{{end -}}
+		{{- if .Queries}}q *{{.Name}}Queries,{{end -}}
 		{{- with .RequestBody}}req {{.}},{{end -}}
 	) ({{.Response}}, error)
 {{end}}
 }
 
-// Set{{.Name}} sets the current service instance.
-func Set{{.Name}}(service {{.Name}}, handlers ...gin.HandlerFunc) {
+// Register{{.Name}} registers the current service instance with middlewares.
+func Register{{.Name}}(service {{.Name}}, handlers ...gin.HandlerFunc) {
 	default{{.Name}} = service
+	default{{.Name}}Handlers = handlers
 }
+
+{{range .Methods}}
+// With{{.Name}} registers middlewares specifically for {{.Name}}.
+func With{{.Name}}(handlers ...gin.HandlerFunc) {
+	default{{$.Name}}Registry[{{.Name | printf "%q"}}].Middlewares = handlers
+}
+{{end}}
 
 type todo{{.Name}} struct{}
 
 {{range .Methods}}
 func (todo{{$.Name}}) {{.Name}}(
-	{{- if .PathVars}}{{.Name}}PathVars,{{end -}}
-	{{- if .Queries}}{{.Name}}Queries,{{end -}}
+	{{- if .PathVars}}*{{.Name}}PathVars,{{end -}}
+	{{- if .Queries}}*{{.Name}}Queries,{{end -}}
 	{{- with .RequestBody}}{{.}},{{end -}}
 ) ({{.Response}}, error) {
 	panic("not implemented")
 }
 {{end}}
 
+{{range .Methods}}
+func defaultHandle{{.Name}}(c *gin.Context) {
+{{if .PathVars}}
+	var vars *{{.Name}}PathVars
+{{end}}
+
+{{if .Queries}}
+	var q *{{.Name}}Queries
+{{end}}
+
+{{with .RequestBody}}
+	var req {{.}}
+{{end}}
+
+	resp, err := default{{$.Name}}.{{.Name}}(
+{{if .PathVars -}}
+		vars,
+{{end -}}
+{{if .Queries -}}
+		q,
+{{end -}}
+{{with .RequestBody -}}
+		req,
+{{end -}}
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+{{end}}
+
 func new{{.Name}}Routers(r *gin.Engine) *gin.Engine {
 	for _, registry := range default{{.Name}}Registry {
 		var handlers []gin.HandlerFunc
-		for _, h := range registry.PreMain {
+
+		for _, h := range default{{.Name}}Handlers {
 			handlers = append(handlers, h)
 		}
+
+		for _, h := range registry.Middlewares {
+			handlers = append(handlers, h)
+		}
+
 		handlers = append(handlers, registry.Main)
-		for _, h := range registry.PostMain {
-			handlers = append(handlers, h)
-		}
+
 		r.Handle(registry.HttpMethod, registry.URL, handlers...)
 	}
 	return r
@@ -111,11 +158,14 @@ func new{{.Name}}Routers(r *gin.Engine) *gin.Engine {
 var (
 	default{{.Name}} {{.Name}} = todo{{.Name}}{}
 
+	default{{.Name}}Handlers []gin.HandlerFunc
+
 	default{{.Name}}Registry = map[string]*ginRegistry{
 {{range .Methods -}}
 			{{.Name | printf "%q"}}: {
 			HttpMethod: {{.HttpMethod | printf "%q"}},
 			URL: {{.Path | printf "%q"}},
+			Main: defaultHandle{{.Name}},
 		},
 {{end}}
 	}

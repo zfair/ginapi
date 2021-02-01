@@ -62,9 +62,10 @@ type ServiceMethod struct {
 }
 
 type PathVar struct {
-	Name  string
-	Type  string
-	Field string
+	Name   string
+	Type   string
+	Field  string
+	Binder string
 }
 
 type Query struct {
@@ -289,9 +290,10 @@ func (p *Parser) parseParam(method *ServiceMethod, param *oapi.Parameter) error 
 	switch in := param.In; in {
 	case "path":
 		method.PathVars = append(method.PathVars, &PathVar{
-			Name:  name,
-			Type:  ty,
-			Field: strings.Title(name),
+			Name:   name,
+			Type:   ty,
+			Field:  strings.Title(name),
+			Binder: "Param" + strings.Title(ty),
 		})
 	case "query":
 		method.Queries = append(method.Queries, &Query{

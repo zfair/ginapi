@@ -21,10 +21,10 @@ const (
 package ginapi
 `
 
-	commonFileTmpl = tmplFileHeader + `
+	utilFileTmpl = tmplFileHeader + `
 
 import (
-	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -35,11 +35,57 @@ type ginRegistry struct {
 	Main gin.HandlerFunc
 	Middlewares []gin.HandlerFunc
 }
+
+func ParamString(c *gin.Context, k string) string {
+	return c.Param(k)
+}
+
+func ParamBool(c *gin.Context, k string) bool {
+	v, _ := strconv.ParseBool(c.Param(k))
+	return v
+}
+
+func ParamInt64(c *gin.Context, k string) int64 {
+	v, _ := strconv.ParseInt(c.Param(k), 10, 64)
+	return v
+}
+
+func ParamInt32(c *gin.Context, k string) int32 {
+	return int32(ParamInt64(c, k))
+}
+
+func ParamInt(c *gin.Context, k string) int {
+	return int(ParamInt64(c, k))
+}
+
+func ParamUint64(c *gin.Context, k string) uint64 {
+	v, _ := strconv.ParseUint(c.Param(k), 10, 64)
+	return v
+}
+
+func ParamUint32(c *gin.Context, k string) uint32 {
+	return uint32(ParamUint64(c, k))
+}
+
+func ParamUint(c *gin.Context, k string) uint {
+	return uint(ParamUint64(c, k))
+}
+
+func ParamFloat32(c *gin.Context, k string) float32 {
+	return float32(ParamFloat64(c, k))
+}
+
+func ParamFloat64(c *gin.Context, k string) float64 {
+	v, _ := strconv.ParseFloat(c.Param(k), 64)
+	return v
+}
 `
 
 	serviceFileTmpl = tmplFileHeader + `
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -105,7 +151,10 @@ func (todo{{$.Name}}) {{.Name}}(
 {{range .Methods}}
 func defaultHandle{{.Name}}(c *gin.Context) {
 {{if .PathVars}}
-	var vars *{{.Name}}PathVars
+	var vars {{.Name}}PathVars
+{{range .PathVars -}}
+	vars.{{.Field}} = {{.Binder}}(c, {{.Name | printf "%q"}})
+{{end}}
 {{end}}
 
 {{if .Queries}}
@@ -118,7 +167,7 @@ func defaultHandle{{.Name}}(c *gin.Context) {
 
 	resp, err := default{{$.Name}}.{{.Name}}(
 {{if .PathVars -}}
-		vars,
+		&vars,
 {{end -}}
 {{if .Queries -}}
 		q,
@@ -284,11 +333,11 @@ func (c *Codegen) generateServices() error {
 }
 
 func (c *Codegen) generateCommon() error {
-	output, err := format.Source([]byte(commonFileTmpl))
+	output, err := format.Source([]byte(utilFileTmpl))
 	if err != nil {
 		return fmt.Errorf("gofmt: %w", err)
 	}
-	outpath := filepath.Join(c.outpath, "common.go")
+	outpath := filepath.Join(c.outpath, "utils.go")
 	if err := ioutil.WriteFile(outpath, output, filePerm); err != nil {
 		return err
 	}

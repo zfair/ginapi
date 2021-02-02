@@ -21,6 +21,12 @@ const (
 package ginapi
 `
 
+	modelFileTmpl = tmplFileHeader + `
+{{range .Typedefs}}
+type {{.Target}} {{.Source}}
+{{end}}
+`
+
 	utilFileTmpl = tmplFileHeader + `
 
 import (
@@ -36,48 +42,49 @@ type ginRegistry struct {
 	Middlewares []gin.HandlerFunc
 }
 
-func ParamString(c *gin.Context, k string) string {
-	return c.Param(k)
+func paramString(c *gin.Context, k string) (string, error) {
+	return c.Param(k), nil
 }
 
-func ParamBool(c *gin.Context, k string) bool {
-	v, _ := strconv.ParseBool(c.Param(k))
-	return v
+func paramBool(c *gin.Context, k string) (bool, error) {
+	return strconv.ParseBool(c.Param(k))
 }
 
-func ParamInt64(c *gin.Context, k string) int64 {
-	v, _ := strconv.ParseInt(c.Param(k), 10, 64)
-	return v
+func paramInt64(c *gin.Context, k string) (int64, error) {
+	return strconv.ParseInt(c.Param(k), 10, 64)
 }
 
-func ParamInt32(c *gin.Context, k string) int32 {
-	return int32(ParamInt64(c, k))
+func paramInt32(c *gin.Context, k string) (int32, error) {
+	v, err := paramInt64(c, k)
+	return int32(v), err
 }
 
-func ParamInt(c *gin.Context, k string) int {
-	return int(ParamInt64(c, k))
+func paramInt(c *gin.Context, k string) (int, error) {
+	v, err := paramInt64(c, k)
+	return int(v), err
 }
 
-func ParamUint64(c *gin.Context, k string) uint64 {
-	v, _ := strconv.ParseUint(c.Param(k), 10, 64)
-	return v
+func paramUint64(c *gin.Context, k string) (uint64, error) {
+	return strconv.ParseUint(c.Param(k), 10, 64)
 }
 
-func ParamUint32(c *gin.Context, k string) uint32 {
-	return uint32(ParamUint64(c, k))
+func paramUint32(c *gin.Context, k string) (uint32, error) {
+	v, err := paramUint64(c, k)
+	return uint32(v), err
 }
 
-func ParamUint(c *gin.Context, k string) uint {
-	return uint(ParamUint64(c, k))
+func paramUint(c *gin.Context, k string) (uint, error) {
+	v, err := paramUint64(c, k)
+	return uint(v), err
 }
 
-func ParamFloat32(c *gin.Context, k string) float32 {
-	return float32(ParamFloat64(c, k))
+func paramFloat32(c *gin.Context, k string) (float32, error) {
+	v, err := paramFloat64(c, k)
+	return float32(v), err
 }
 
-func ParamFloat64(c *gin.Context, k string) float64 {
-	v, _ := strconv.ParseFloat(c.Param(k), 64)
-	return v
+func paramFloat64(c *gin.Context, k string) (float64, error) {
+	return strconv.ParseFloat(c.Param(k), 64)
 }
 `
 
@@ -118,7 +125,7 @@ type {{.Name}} interface {
 	{{.Name}}(
 		{{- if .PathVars}}vars *{{.Name}}PathVars,{{end -}}
 		{{- if .Queries}}q *{{.Name}}Queries,{{end -}}
-		{{- with .RequestBody}}req {{.}},{{end -}}
+		{{- with .RequestBody}}req *{{.}},{{end -}}
 	) ({{.Response}}, error)
 {{end}}
 }
@@ -142,7 +149,7 @@ type todo{{.Name}} struct{}
 func (todo{{$.Name}}) {{.Name}}(
 	{{- if .PathVars}}*{{.Name}}PathVars,{{end -}}
 	{{- if .Queries}}*{{.Name}}Queries,{{end -}}
-	{{- with .RequestBody}}{{.}},{{end -}}
+	{{- with .RequestBody}}*{{.}},{{end -}}
 ) ({{.Response}}, error) {
 	panic("not implemented")
 }
@@ -150,24 +157,34 @@ func (todo{{$.Name}}) {{.Name}}(
 
 {{range .Methods}}
 func defaultHandle{{.Name}}(c *gin.Context) {
-{{if .PathVars}}
-	var vars {{.Name}}PathVars
+	var err error
+
+{{if .PathVars -}}
+	vars := &{{.Name}}PathVars{}
 {{range .PathVars -}}
-	vars.{{.Field}} = {{.Binder}}(c, {{.Name | printf "%q"}})
+	if vars.{{.Field}}, err = {{.Binder}}(c, {{.Name | printf "%q"}}); err != nil {
+		panic(err)
+	}
 {{end}}
 {{end}}
 
 {{if .Queries}}
-	var q *{{.Name}}Queries
+	q := &{{.Name}}Queries{}
+	if err := c.ShouldBind(q); err != nil {
+		panic(err)
+	}
 {{end}}
 
 {{with .RequestBody}}
-	var req {{.}}
+	req := &{{.}}{}
+	if err := c.ShouldBind(req); err != nil {
+		panic(err)
+	}
 {{end}}
 
 	resp, err := default{{$.Name}}.{{.Name}}(
 {{if .PathVars -}}
-		&vars,
+		vars,
 {{end -}}
 {{if .Queries -}}
 		q,
@@ -227,9 +244,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// NewRouter creates the main router for all services.
-func NewRouter() *gin.Engine {
-	r := gin.Default()
+// Initialize initializes the main router for all services.
+func Initialize(r *gin.Engine) *gin.Engine {
 {{range .Services}}
 	r = new{{.Name}}Routers(r)
 {{end}}
@@ -301,6 +317,9 @@ func (c *Codegen) Generate() error {
 	if err := c.copyModels(); err != nil {
 		return err
 	}
+	if err := c.generateTypedefs(); err != nil {
+		return err
+	}
 	if err := c.generateRouters(); err != nil {
 		return err
 	}
@@ -309,23 +328,8 @@ func (c *Codegen) Generate() error {
 
 func (c *Codegen) generateServices() error {
 	for _, service := range c.Services {
-		tmpl, err := template.New("ginapi-services").Parse(serviceFileTmpl)
-		if err != nil {
-			return err
-		}
-
-		buf := bytes.NewBufferString("")
-		if err := tmpl.Execute(buf, service); err != nil {
-			return fmt.Errorf("text/template: %w", err)
-		}
-
-		output, err := format.Source(buf.Bytes())
-		if err != nil {
-			return fmt.Errorf("gofmt: %w", err)
-		}
-
 		outpath := filepath.Join(c.outpath, service.Filepath)
-		if err := ioutil.WriteFile(outpath, output, filePerm); err != nil {
+		if err := formattedRender("ginapi-services", serviceFileTmpl, outpath, service); err != nil {
 			return err
 		}
 	}
@@ -361,25 +365,32 @@ func (c *Codegen) copyModels() error {
 	return nil
 }
 
-func (c *Codegen) generateRouters() error {
-	// FIXME: Code duplication.
+func (c *Codegen) generateTypedefs() error {
+	outpath := filepath.Join(c.outpath, "models.go")
+	return formattedRender("ginapi-models", modelFileTmpl, outpath, c.Parser)
+}
 
-	tmpl, err := template.New("ginapi-routers").Parse(routerFileTmpl)
+func (c *Codegen) generateRouters() error {
+	outpath := filepath.Join(c.outpath, "routers.go")
+	return formattedRender("ginapi-routers", routerFileTmpl, outpath, c.Parser)
+}
+
+func formattedRender(name, text, outpath string, data interface{}) error {
+	tmpl, err := template.New(name).Parse(text)
 	if err != nil {
 		return err
 	}
 
 	buf := bytes.NewBufferString("")
-	if err := tmpl.Execute(buf, c.Parser); err != nil {
-		return fmt.Errorf("text/template: %w", err)
+	if err := tmpl.Execute(buf, data); err != nil {
+		return fmt.Errorf("text/template: %s: %w", outpath, err)
 	}
 
 	output, err := format.Source(buf.Bytes())
 	if err != nil {
-		return fmt.Errorf("gofmt: %w", err)
+		return fmt.Errorf("gofmt: %s: %w", outpath, err)
 	}
 
-	outpath := filepath.Join(c.outpath, "routers.go")
 	if err := ioutil.WriteFile(outpath, output, filePerm); err != nil {
 		return err
 	}

@@ -3,6 +3,8 @@
 .vscode/
 .idea/
 
+examples/generated/
+
 ### Go ###
 # Binaries for programs and plugins
 *.exe

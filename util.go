@@ -23,18 +23,25 @@ func OapiTagToServiceName(tag string) string {
 	return strings.Join(parts, "")
 }
 
-func OapiRefToGoType(ref string) (string, error) {
+func OapiRefToGoStruct(ref string) (string, error) {
 	parts := strings.Split(ref, "/")
-	l := len(parts)
-	if l == 0 {
-		return "", fmt.Errorf("%w: %s", ErrUtilBadOapiRef, ref)
+	if l := len(parts); l > 0 {
+		return strings.Title(parts[l-1]), nil
 	}
-	return fmt.Sprintf("*%s", strings.Title(parts[l-1])), nil
+	return "", fmt.Errorf("%w: %s", ErrUtilBadOapiRef, ref)
+}
+
+func OapiRefToGoPtr(ref string) (string, error) {
+	ty, err := OapiRefToGoStruct(ref)
+	if err != nil {
+		return "", err
+	}
+	return "*" + ty, nil
 }
 
 func OapiToGoType(ref *openapi3.SchemaRef) (string, error) {
 	if ref.Ref != "" {
-		t, err := OapiRefToGoType(ref.Ref)
+		t, err := OapiRefToGoPtr(ref.Ref)
 		if err != nil {
 			return "", err
 		}

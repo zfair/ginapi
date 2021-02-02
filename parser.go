@@ -37,7 +37,13 @@ type Parser struct {
 	methods    map[string]*ServiceMethod
 
 	// Used for template rendering, the 'true' AST.
+	Typedefs []Typedef
 	Services map[string]*ServiceInfo
+}
+
+type Typedef struct {
+	Source string
+	Target string
 }
 
 type ServiceInfo struct {
@@ -187,6 +193,10 @@ func (p *Parser) parseYaml() error {
 		return err
 	}
 
+	if err := p.parseTypedefs(swagger.Components.Schemas); err != nil {
+		return err
+	}
+
 	for path, item := range swagger.Paths {
 		if err := p.parseOperation(item.Get, path, http.MethodGet); err != nil {
 			return err
@@ -229,6 +239,23 @@ func (p *Parser) parseServiceComments(tags oapi.Tags) error {
 		}
 		service.Comment = tag.Description
 	}
+	return nil
+}
+
+func (p *Parser) parseTypedefs(schemas oapi.Schemas) error {
+	for name, schema := range schemas {
+		if schema.Value.Type == "array" {
+			ty, err := OapiToGoType(schema)
+			if err != nil {
+				return err
+			}
+			p.Typedefs = append(p.Typedefs, Typedef{
+				Source: ty,
+				Target: name,
+			})
+		}
+	}
+
 	return nil
 }
 
@@ -293,7 +320,7 @@ func (p *Parser) parseParam(method *ServiceMethod, param *oapi.Parameter) error 
 			Name:   name,
 			Type:   ty,
 			Field:  strings.Title(name),
-			Binder: "Param" + strings.Title(ty),
+			Binder: "param" + strings.Title(ty),
 		})
 	case "query":
 		method.Queries = append(method.Queries, &Query{
@@ -326,7 +353,7 @@ func (p *Parser) parseBody(method *ServiceMethod, body *oapi.RequestBodyRef) err
 		return fmt.Errorf("%w: request body of method %q", ErrUtilUseRef, m)
 	}
 
-	t, err := OapiRefToGoType(ref)
+	t, err := OapiRefToGoStruct(ref)
 	if err != nil {
 		return fmt.Errorf("%w: request body of method %q: %v", ErrParserBadRequestSchema, m, err)
 	}
@@ -361,7 +388,7 @@ func (p *Parser) parseResponses(method *ServiceMethod, resps oapi.Responses) err
 		return fmt.Errorf("%w: response of method %q", ErrUtilUseRef, m)
 	}
 
-	t, err := OapiRefToGoType(ref)
+	t, err := OapiRefToGoPtr(ref)
 	if err != nil {
 		return fmt.Errorf("%w: response schema of method %q: %v", ErrParserBadRequestSchema, m, err)
 	}

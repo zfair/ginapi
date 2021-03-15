@@ -31,58 +31,60 @@ func OapiRefToGoStruct(ref string) (string, error) {
 	return "", fmt.Errorf("%w: %s", ErrUtilBadOapiRef, ref)
 }
 
-func OapiRefToGoPtr(ref string) (string, error) {
-	ty, err := OapiRefToGoStruct(ref)
-	if err != nil {
-		return "", err
-	}
-	return "*" + ty, nil
-}
-
-func OapiToGoType(ref *openapi3.SchemaRef) (string, error) {
+func OapiToGoType(ref *openapi3.SchemaRef, required bool) (ret string, err error) {
 	if ref.Ref != "" {
-		t, err := OapiRefToGoPtr(ref.Ref)
+		var t string
+		t, err = OapiRefToGoStruct(ref.Ref)
 		if err != nil {
-			return "", err
+			return
 		}
-		return t, nil
+		ret = t
+	} else {
+		schema := ref.Value
+		t := schema.Type
+
+		switch t {
+		case "number":
+			switch schema.Format {
+			case "float":
+				ret = "float32"
+			case "double":
+				ret = "float64"
+			}
+		case "integer":
+			switch f := schema.Format; f {
+			case "int32":
+				fallthrough
+			case "int64":
+				ret = f
+			}
+		case "string":
+			ret = t
+		case "boolean":
+			ret = "bool"
+		case "array":
+			var tt string
+			tt, err = OapiToGoType(schema.Items, required)
+			if err != nil {
+				return
+			}
+			ret = fmt.Sprintf("[]%s", tt)
+		case "object":
+			if schema.Properties != nil {
+				err = ErrUtilUseRef
+				return
+			}
+		default:
+			err = fmt.Errorf("%w: %s", ErrUtilBadOapiSchemaType, schema.Type)
+			return
+		}
 	}
 
-	schema := ref.Value
-	t := schema.Type
-
-	switch t {
-	case "number":
-		switch schema.Format {
-		case "float":
-			return "float32", nil
-		case "double":
-			return "float64", nil
-		}
-	case "integer":
-		switch f := schema.Format; f {
-		case "int32":
-			fallthrough
-		case "int64":
-			return f, nil
-		}
-	case "string":
-		return t, nil
-	case "boolean":
-		return "bool", nil
-	case "array":
-		tt, err := OapiToGoType(schema.Items)
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("[]%s", tt), nil
-	case "object":
-		if schema.Properties != nil {
-			return "", ErrUtilUseRef
-		}
+	if !required {
+		ret = "*" + ret
 	}
 
-	return "", fmt.Errorf("%w: %s", ErrUtilBadOapiSchemaType, schema.Type)
+	return
 }
 
 func OapiToGinPathParam(param string) (ret string) {

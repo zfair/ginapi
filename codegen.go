@@ -111,7 +111,7 @@ type {{.Name}}PathVars struct {
 // {{.Name}}Queries is the query parameters of {{.Name}}.
 type {{.Name}}Queries struct {
 {{range .Queries -}}
-	{{.Field}} {{.Kind}} ` + "`form:\"{{.Name}}\"`" + `
+	{{.Field}} {{.Type}} ` + "`form:\"{{.Name}}\"`" + `
 {{end}}
 }
 {{end}}
@@ -123,9 +123,9 @@ type {{.Name}} interface {
 {{range .Methods -}}
 	// {{.Name}} {{.Comment}}
 	{{.Name}}(
-		{{- if .PathVars}}vars *{{.Name}}PathVars,{{end -}}
-		{{- if .Queries}}q *{{.Name}}Queries,{{end -}}
-		{{- with .RequestBody}}req *{{.}},{{end -}}
+		{{- if .PathVars}}vars {{.Name}}PathVars,{{end -}}
+		{{- if .Queries}}q {{.Name}}Queries,{{end -}}
+		{{- with .RequestBody}}req {{.}},{{end -}}
 	) ({{.Response}}, error)
 {{end}}
 }
@@ -147,9 +147,9 @@ type todo{{.Name}} struct{}
 
 {{range .Methods}}
 func (todo{{$.Name}}) {{.Name}}(
-	{{- if .PathVars}}*{{.Name}}PathVars,{{end -}}
-	{{- if .Queries}}*{{.Name}}Queries,{{end -}}
-	{{- with .RequestBody}}*{{.}},{{end -}}
+	{{- if .PathVars}}{{.Name}}PathVars,{{end -}}
+	{{- if .Queries}}{{.Name}}Queries,{{end -}}
+	{{- with .RequestBody}}{{.}},{{end -}}
 ) ({{.Response}}, error) {
 	panic("not implemented")
 }
@@ -160,7 +160,7 @@ func defaultHandle{{.Name}}(c *gin.Context) {
 	var err error
 
 {{if .PathVars -}}
-	vars := &{{.Name}}PathVars{}
+	vars := {{.Name}}PathVars{}
 {{range .PathVars -}}
 	if vars.{{.Field}}, err = {{.Binder}}(c, {{.Name | printf "%q"}}); err != nil {
 		panic(err)
@@ -169,15 +169,15 @@ func defaultHandle{{.Name}}(c *gin.Context) {
 {{end}}
 
 {{if .Queries}}
-	q := &{{.Name}}Queries{}
-	if err := c.ShouldBind(q); err != nil {
+	q := {{.Name}}Queries{}
+	if err := c.ShouldBind(&q); err != nil {
 		panic(err)
 	}
 {{end}}
 
 {{with .RequestBody}}
-	req := &{{.}}{}
-	if err := c.ShouldBind(req); err != nil {
+	req := {{.}}{}
+	if err := c.ShouldBind(&req); err != nil {
 		panic(err)
 	}
 {{end}}

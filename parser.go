@@ -76,7 +76,7 @@ type PathVar struct {
 
 type Query struct {
 	Name  string
-	Kind  string
+	Type  string
 	Field string
 }
 
@@ -245,7 +245,8 @@ func (p *Parser) parseServiceComments(tags oapi.Tags) error {
 func (p *Parser) parseTypedefs(schemas oapi.Schemas) error {
 	for name, schema := range schemas {
 		if schema.Value.Type == "array" {
-			ty, err := OapiToGoType(schema)
+			// Items in the array are required.
+			ty, err := OapiToGoType(schema, true)
 			if err != nil {
 				return err
 			}
@@ -308,7 +309,7 @@ func (p *Parser) parseParam(method *ServiceMethod, param *oapi.Parameter) error 
 		schema = jsonSchema.Schema
 	}
 
-	ty, err := OapiToGoType(schema)
+	ty, err := OapiToGoType(schema, param.Required)
 	if err != nil {
 		return fmt.Errorf("%w: cannot get Go type from param '%s/%s': %v",
 			ErrParserBadParamSchema, m, name, err)
@@ -325,7 +326,7 @@ func (p *Parser) parseParam(method *ServiceMethod, param *oapi.Parameter) error 
 	case "query":
 		method.Queries = append(method.Queries, &Query{
 			Name:  name,
-			Kind:  ty,
+			Type:  ty,
 			Field: strings.Title(name),
 		})
 	default:
@@ -342,7 +343,7 @@ func (p *Parser) parseBody(method *ServiceMethod, body *oapi.RequestBodyRef) err
 
 	m := method.Name
 
-	// TODO
+	// TODO: Only supports JSON now.
 	jsonSchema := body.Value.Content.Get(mimeJSON)
 	if jsonSchema == nil {
 		return fmt.Errorf("%w: request body of method %q", ErrParserNoSchema, m)
@@ -377,18 +378,14 @@ func (p *Parser) parseResponses(method *ServiceMethod, resps oapi.Responses) err
 		return fmt.Errorf("%w: no 200 response given in method %q", ErrParserNoSchema, m)
 	}
 
-	// TODO
+	// TODO: Only supports JSON now.
 	jsonSchema := resp.Value.Content.Get(mimeJSON)
 	if jsonSchema == nil {
 		return fmt.Errorf("%w: response of method %q", ErrParserNoSchema, m)
 	}
 
-	ref := jsonSchema.Schema.Ref
-	if ref == "" {
-		return fmt.Errorf("%w: response of method %q", ErrUtilUseRef, m)
-	}
-
-	t, err := OapiRefToGoPtr(ref)
+	// Types for responses could be pointers.
+	t, err := OapiToGoType(jsonSchema.Schema, false)
 	if err != nil {
 		return fmt.Errorf("%w: response schema of method %q: %v", ErrParserBadRequestSchema, m, err)
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -35,17 +36,17 @@ func (p *DefaultPetsService) CreatePets() (*ginapi.Result, error) {
 	return &ginapi.Result{Message: "ok"}, nil
 }
 
-func (p *DefaultPetsService) ListPets(q *ginapi.ListPetsQueries) (*ginapi.Pets, error) {
+func (p *DefaultPetsService) ListPets(q ginapi.ListPetsQueries) (*ginapi.Pets, error) {
 	var n int32
 	var ret ginapi.Pets
 
 	p.m.Range(func(key, value interface{}) bool {
-		if n++; q.Limit > 0 && n > q.Limit {
+		if n++; q.Limit != nil && n > *q.Limit {
 			return false
 		}
 
 		pet := value.(*ginapi.Pet)
-		ret = append(ret, &ginapi.Pet{
+		ret = append(ret, ginapi.Pet{
 			Id:   pet.Id,
 			Name: pet.Name,
 		})
@@ -56,10 +57,10 @@ func (p *DefaultPetsService) ListPets(q *ginapi.ListPetsQueries) (*ginapi.Pets, 
 	return &ret, nil
 }
 
-func (p *DefaultPetsService) ShowPetById(vars *ginapi.ShowPetByIdPathVars) (*ginapi.Pet, error) {
+func (p *DefaultPetsService) ShowPetById(vars ginapi.ShowPetByIdPathVars) (*ginapi.Pet, error) {
 	pet, ok := p.m.Load(vars.PetId)
 	if ok {
 		return pet.(*ginapi.Pet), nil
 	}
-	return nil, nil
+	return nil, fmt.Errorf("nou found: %s", vars.PetId)
 }

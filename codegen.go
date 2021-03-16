@@ -27,71 +27,12 @@ type {{.Target}} {{.Source}}
 {{end}}
 `
 
-	utilFileTmpl = tmplFileHeader + `
-
-import (
-	"strconv"
-
-	"github.com/gin-gonic/gin"
-)
-
-type ginRegistry struct {
-	HttpMethod string
-	URL string
-	Main gin.HandlerFunc
-	Middlewares []gin.HandlerFunc
-}
-
-func paramString(c *gin.Context, k string) (string, error) {
-	return c.Param(k), nil
-}
-
-func paramBool(c *gin.Context, k string) (bool, error) {
-	return strconv.ParseBool(c.Param(k))
-}
-
-func paramInt64(c *gin.Context, k string) (int64, error) {
-	return strconv.ParseInt(c.Param(k), 10, 64)
-}
-
-func paramInt32(c *gin.Context, k string) (int32, error) {
-	v, err := paramInt64(c, k)
-	return int32(v), err
-}
-
-func paramInt(c *gin.Context, k string) (int, error) {
-	v, err := paramInt64(c, k)
-	return int(v), err
-}
-
-func paramUint64(c *gin.Context, k string) (uint64, error) {
-	return strconv.ParseUint(c.Param(k), 10, 64)
-}
-
-func paramUint32(c *gin.Context, k string) (uint32, error) {
-	v, err := paramUint64(c, k)
-	return uint32(v), err
-}
-
-func paramUint(c *gin.Context, k string) (uint, error) {
-	v, err := paramUint64(c, k)
-	return uint(v), err
-}
-
-func paramFloat32(c *gin.Context, k string) (float32, error) {
-	v, err := paramFloat64(c, k)
-	return float32(v), err
-}
-
-func paramFloat64(c *gin.Context, k string) (float64, error) {
-	return strconv.ParseFloat(c.Param(k), 64)
-}
-`
-
 	serviceFileTmpl = tmplFileHeader + `
 
 import (
 	"net/http"
+
+	"github.com/zfair/ginapi/internal"
 
 	"github.com/gin-gonic/gin"
 )
@@ -162,7 +103,7 @@ func defaultHandle{{.Name}}(c *gin.Context) {
 {{if .PathVars -}}
 	vars := {{.Name}}PathVars{}
 {{range .PathVars -}}
-	if vars.{{.Field}}, err = {{.Binder}}(c, {{.Name | printf "%q"}}); err != nil {
+	if vars.{{.Field}}, err = internal.{{.Binder}}(c, {{.Name | printf "%q"}}); err != nil {
 		panic(err)
 	}
 {{end}}
@@ -226,7 +167,7 @@ var (
 
 	default{{.Name}}Handlers []gin.HandlerFunc
 
-	default{{.Name}}Registry = map[string]*ginRegistry{
+	default{{.Name}}Registry = map[string]*internal.GinRegistry{
 {{range .Methods -}}
 			{{.Name | printf "%q"}}: {
 			HttpMethod: {{.HttpMethod | printf "%q"}},
@@ -311,9 +252,6 @@ func (c *Codegen) Generate() error {
 	if err := c.generateServices(); err != nil {
 		return err
 	}
-	if err := c.generateCommon(); err != nil {
-		return err
-	}
 	if err := c.copyModels(); err != nil {
 		return err
 	}
@@ -332,18 +270,6 @@ func (c *Codegen) generateServices() error {
 		if err := formattedRender("ginapi-services", serviceFileTmpl, outpath, service); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func (c *Codegen) generateCommon() error {
-	output, err := format.Source([]byte(utilFileTmpl))
-	if err != nil {
-		return fmt.Errorf("gofmt: %w", err)
-	}
-	outpath := filepath.Join(c.outpath, "utils.go")
-	if err := ioutil.WriteFile(outpath, output, filePerm); err != nil {
-		return err
 	}
 	return nil
 }

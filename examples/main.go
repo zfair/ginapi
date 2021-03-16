@@ -2,19 +2,28 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"sync"
 	"sync/atomic"
 
+	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	ginapiutil "github.com/zfair/ginapi/utils"
 
 	"github.com/zfair/ginapi/examples/generated/ginapi"
+	_ "github.com/zfair/ginapi/examples/statik"
 )
 
 func init() {
-	ginapi.RegisterPetsService(&DefaultPetsService{})
+	ginapi.RegisterPetsService(
+		&DefaultPetsService{},
+		recovery(),
+		ginapiutil.UseValidation("/petstore.yaml"),
+	)
 }
 
+//go:generate statik -src=. -dest=. -include=petstore.yaml
 func main() {
 	r := ginapi.Initialize(gin.Default())
 	if err := r.Run("localhost:8088"); err != nil {
@@ -25,6 +34,35 @@ func main() {
 type DefaultPetsService struct {
 	m sync.Map
 	c int64
+}
+
+func recovery() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			if r := recover(); r != nil {
+				err, ok := r.(error)
+				if !ok {
+					panic(r)
+				}
+
+				if _, ok := err.(*openapi3filter.RequestError); ok {
+					c.String(
+						http.StatusBadRequest,
+						"invalid parameter: %v",
+						err,
+					)
+					return
+				}
+
+				c.String(
+					http.StatusInternalServerError,
+					"internal server error: %v",
+					err,
+				)
+			}
+		}()
+		c.Next()
+	}
 }
 
 func (p *DefaultPetsService) CreatePets() (*ginapi.Result, error) {
@@ -62,5 +100,5 @@ func (p *DefaultPetsService) ShowPetById(vars ginapi.ShowPetByIdPathVars) (*gina
 	if ok {
 		return pet.(*ginapi.Pet), nil
 	}
-	return nil, fmt.Errorf("nou found: %s", vars.PetId)
+	return nil, fmt.Errorf("not found: %s", vars.PetId)
 }

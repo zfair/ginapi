@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -19,6 +20,7 @@ type GinapiCli struct {
 	isHelp    bool
 	isVersion bool
 	mode      string
+	rawVars   string
 }
 
 func NewCli() *GinapiCli {
@@ -43,6 +45,7 @@ func (c *GinapiCli) Parse() *GinapiCli {
 	flag.BoolVar(&c.isHelp, "h", false, "show help")
 	flag.BoolVar(&c.isVersion, "v", false, "show version")
 	flag.StringVar(&c.inpath, "i", "", "path to OpenAPI generated code as input")
+	flag.StringVar(&c.rawVars, "vars", "", "server variables as JSON")
 	flag.StringVar(&c.mode, "m", CodegenModeServer, "server/client code to generate")
 
 	flag.Parse()
@@ -59,6 +62,11 @@ func (c *GinapiCli) validate() error {
 	}
 	if _, ok := CodegenModes[c.mode]; !ok {
 		return fmt.Errorf("%w: %s", ErrCliBadMode, c.mode)
+	}
+	if raw := c.rawVars; raw != "" {
+		if err := json.Unmarshal([]byte(raw), &c.vars); err != nil {
+			return err
+		}
 	}
 	return nil
 }

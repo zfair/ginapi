@@ -9,4 +9,5 @@ $ docker run --rm -v $(PWD):/local \
     -g go-gin-server \
     -o /local/generated
 $ ginapi -i generated
+$ go generate ./...
 ```

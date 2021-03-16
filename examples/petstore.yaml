@@ -6,7 +6,13 @@ info:
   license:
     name: MIT
 servers:
-  - url: http://petstore.swagger.io/v1
+  - url: '{server}/v1'
+    variables:
+      server:
+        default: http://petstore.swagger.io
+        enum:
+          - http://localhost:8088
+          - http://petstore.swagger.io
 paths:
   /pets:
     get:
@@ -17,11 +23,12 @@ paths:
       parameters:
         - name: limit
           in: query
-          description: How many items to return at one time (max 100)
+          description: How many items to return at one time
           required: false
           schema:
             type: integer
             format: int32
+            maximum: 100
       responses:
         '200':
           description: A paged array of pets

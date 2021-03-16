@@ -22,6 +22,7 @@ var (
 	ErrParserBadSpecs         = errors.New("bad specs")
 	ErrParserNoSchema         = errors.New("no schema specified")
 	ErrParserNoRootUrl        = errors.New("no root URL specified")
+	ErrParserBadRootUrl       = errors.New("bad root URL specified")
 	ErrParserBadParamKind     = errors.New("bad parameter kind")
 	ErrParserBadParamSchema   = errors.New("bad parameter schema")
 	ErrParserBadRequestSchema = errors.New("bad request body schema")
@@ -32,6 +33,7 @@ type Parser struct {
 	srcpath  string
 	specpath string
 
+	vars       map[string]string
 	rootURL    string
 	modelPaths []string
 	methods    map[string]*ServiceMethod
@@ -67,7 +69,11 @@ type ServiceMethod struct {
 	Response    string
 }
 
+type Validations map[string]string
+
 type PathVar struct {
+	Validations
+
 	Name   string
 	Type   string
 	Field  string
@@ -75,6 +81,8 @@ type PathVar struct {
 }
 
 type Query struct {
+	Validations
+
 	Name  string
 	Type  string
 	Field string
@@ -220,7 +228,19 @@ func (p *Parser) parseRootURL(servers []*oapi.Server) error {
 		return ErrParserNoRootUrl
 	}
 
-	rootURL, err := url.Parse(servers[0].URL)
+	// TODO: Currently default to the first URL.
+	root := servers[0].URL
+
+	// Renders the server variables.
+	for k, v := range p.vars {
+		root = strings.ReplaceAll(root, fmt.Sprintf("{%s}", k), v)
+	}
+
+	if strings.Contains(root, "{") || strings.Contains(root, "}") {
+		return fmt.Errorf("%w: %s", ErrParserBadRootUrl, root)
+	}
+
+	rootURL, err := url.Parse(root)
 	if err != nil {
 		return err
 	}
@@ -290,8 +310,6 @@ func (p *Parser) parseOperation(op *oapi.Operation, path, httpMethod string) err
 		return err
 	}
 
-	// TODO: Parse validation.
-
 	return nil
 }
 
@@ -321,7 +339,7 @@ func (p *Parser) parseParam(method *ServiceMethod, param *oapi.Parameter) error 
 			Name:   name,
 			Type:   ty,
 			Field:  strings.Title(name),
-			Binder: "param" + strings.Title(ty),
+			Binder: "Param" + strings.Title(ty),
 		})
 	case "query":
 		method.Queries = append(method.Queries, &Query{

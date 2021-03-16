@@ -32,7 +32,7 @@ type {{.Target}} {{.Source}}
 import (
 	"net/http"
 
-	"github.com/zfair/ginapi/internal"
+	"github.com/zfair/ginapi/utils/detail"
 
 	"github.com/gin-gonic/gin"
 )
@@ -103,7 +103,7 @@ func defaultHandle{{.Name}}(c *gin.Context) {
 {{if .PathVars -}}
 	vars := {{.Name}}PathVars{}
 {{range .PathVars -}}
-	if vars.{{.Field}}, err = internal.{{.Binder}}(c, {{.Name | printf "%q"}}); err != nil {
+	if vars.{{.Field}}, err = detail.{{.Binder}}(c, {{.Name | printf "%q"}}); err != nil {
 		panic(err)
 	}
 {{end}}
@@ -167,7 +167,7 @@ var (
 
 	default{{.Name}}Handlers []gin.HandlerFunc
 
-	default{{.Name}}Registry = map[string]*internal.GinRegistry{
+	default{{.Name}}Registry = map[string]*detail.GinRegistry{
 {{range .Methods -}}
 			{{.Name | printf "%q"}}: {
 			HttpMethod: {{.HttpMethod | printf "%q"}},

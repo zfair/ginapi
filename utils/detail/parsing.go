@@ -1,4 +1,4 @@
-package internal
+package detail
 
 import (
 	"strconv"

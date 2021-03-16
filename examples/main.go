@@ -12,7 +12,7 @@ import (
 	ginapiutil "github.com/zfair/ginapi/utils"
 
 	"github.com/zfair/ginapi/examples/generated/ginapi"
-	_ "github.com/zfair/ginapi/examples/statik"
+	_ "github.com/zfair/ginapi/examples/generated/statik"
 )
 
 func init() {
@@ -23,7 +23,7 @@ func init() {
 	)
 }
 
-//go:generate statik -src=. -dest=. -include=petstore.yaml
+//go:generate statik -src=. -dest=./generated -include=petstore.yaml
 func main() {
 	r := ginapi.Initialize(gin.Default())
 	if err := r.Run("localhost:8088"); err != nil {
@@ -51,6 +51,7 @@ func recovery() gin.HandlerFunc {
 						"invalid parameter: %v",
 						err,
 					)
+					c.Abort()
 					return
 				}
 
@@ -59,6 +60,7 @@ func recovery() gin.HandlerFunc {
 					"internal server error: %v",
 					err,
 				)
+				c.Abort()
 			}
 		}()
 		c.Next()

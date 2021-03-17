@@ -48,8 +48,8 @@ func main() {
 
 type DefaultPetsService struct{}
 
-// Methods with queries/path variables/request bodies as arguments, responses as return value. Not just empty handler
-// functions :(.
+// Methods with queries/path variables/request bodies as arguments, responses as
+// return value. Not just empty handler functions :(.
 func (p *DefaultPetsService) CreatePets() (*ginapi.Result, error) {
 	panic("TODO")
 }

@@ -15,18 +15,15 @@ import (
 	_ "github.com/anqur/ginapi/examples/generated/statik"
 )
 
-func init() {
+//go:generate docker run --rm -v $PWD:/local openapitools/openapi-generator-cli generate -i /local/petstore.yaml -g go-gin-server -o /local/generated
+//go:generate ginapi -i generated -vars {"server":"http://localhost:8088"}
+//go:generate statik -src=. -dest=./generated -include=petstore.yaml
+func main() {
 	ginapi.RegisterPetsService(
 		&DefaultPetsService{},
 		recovery(),
 		ginapiutil.UseValidation("/petstore.yaml"),
 	)
-}
-
-//go:generate docker run --rm -v $PWD:/local openapitools/openapi-generator-cli generate -i /local/petstore.yaml -g go-gin-server -o /local/generated
-//go:generate ginapi -i generated -vars {"server":"http://localhost:8088"}
-//go:generate statik -src=. -dest=./generated -include=petstore.yaml
-func main() {
 	r := ginapi.Initialize(gin.Default())
 	if err := r.Run("localhost:8088"); err != nil {
 		panic(err)

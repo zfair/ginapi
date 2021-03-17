@@ -19,7 +19,6 @@ type GinapiCli struct {
 
 	isHelp    bool
 	isVersion bool
-	mode      string
 	rawVars   string
 }
 
@@ -46,22 +45,14 @@ func (c *GinapiCli) Parse() *GinapiCli {
 	flag.BoolVar(&c.isVersion, "v", false, "show version")
 	flag.StringVar(&c.inpath, "i", "", "path to OpenAPI generated code as input")
 	flag.StringVar(&c.rawVars, "vars", "", "server variables as JSON")
-	flag.StringVar(&c.mode, "m", CodegenModeServer, "server/client code to generate")
 
 	flag.Parse()
-
 	return c
 }
 
 func (c *GinapiCli) validate() error {
 	if c.inpath == "" {
 		return ErrCliNoInpath
-	}
-	if c.mode == "" {
-		return ErrCliBadMode
-	}
-	if _, ok := CodegenModes[c.mode]; !ok {
-		return fmt.Errorf("%w: %s", ErrCliBadMode, c.mode)
 	}
 	if raw := c.rawVars; raw != "" {
 		if err := json.Unmarshal([]byte(raw), &c.vars); err != nil {

@@ -207,9 +207,7 @@ var (
 
 type Codegen struct {
 	*Parser
-
 	outpath string
-	mode    string
 }
 
 func NewCodegen() *Codegen {

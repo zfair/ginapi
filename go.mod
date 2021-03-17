@@ -1,4 +1,4 @@
-module github.com/zfair/ginapi
+module github.com/anqur/ginapi
 
 go 1.16
 

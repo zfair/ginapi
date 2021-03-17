@@ -32,7 +32,7 @@ type {{.Target}} {{.Source}}
 import (
 	"net/http"
 
-	"github.com/zfair/ginapi/utils/detail"
+	"github.com/anqur/ginapi/utils/detail"
 
 	"github.com/gin-gonic/gin"
 )

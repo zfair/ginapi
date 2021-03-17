@@ -6,13 +6,13 @@ import (
 	"sync"
 	"sync/atomic"
 
+	ginapiutil "github.com/anqur/ginapi/utils"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	ginapiutil "github.com/zfair/ginapi/utils"
 
-	"github.com/zfair/ginapi/examples/generated/ginapi"
-	_ "github.com/zfair/ginapi/examples/generated/statik"
+	"github.com/anqur/ginapi/examples/generated/ginapi"
+	_ "github.com/anqur/ginapi/examples/generated/statik"
 )
 
 func init() {
@@ -23,6 +23,8 @@ func init() {
 	)
 }
 
+//go:generate docker run --rm -v $PWD:/local openapitools/openapi-generator-cli generate -i /local/petstore.yaml -g go-gin-server -o /local/generated
+//go:generate ginapi -i generated -vars {"server":"http://localhost:8088"}
 //go:generate statik -src=. -dest=./generated -include=petstore.yaml
 func main() {
 	r := ginapi.Initialize(gin.Default())

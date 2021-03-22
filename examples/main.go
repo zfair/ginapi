@@ -66,12 +66,17 @@ func recovery() gin.HandlerFunc {
 	}
 }
 
-func (p *DefaultPetsService) CreatePets() (*ginapi.Result, error) {
+func (p *DefaultPetsService) CreatePets(h ginapi.CreatePetsHeaders) (*ginapi.Result, error) {
 	id := uuid.NewString()
-	p.m.Store(id, &ginapi.Pet{
+	pet := &ginapi.Pet{
 		Id:   atomic.AddInt64(&p.c, 1),
 		Name: id,
-	})
+		Tag:  id,
+	}
+	if h.XTag != nil {
+		pet.Tag = *h.XTag
+	}
+	p.m.Store(id, pet)
 	return &ginapi.Result{Message: "ok"}, nil
 }
 
@@ -88,6 +93,7 @@ func (p *DefaultPetsService) ListPets(q ginapi.ListPetsQueries) (*ginapi.Pets, e
 		ret = append(ret, ginapi.Pet{
 			Id:   pet.Id,
 			Name: pet.Name,
+			Tag:  pet.Tag,
 		})
 
 		return true

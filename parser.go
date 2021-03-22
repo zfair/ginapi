@@ -65,15 +65,12 @@ type ServiceMethod struct {
 	HttpMethod  string
 	PathVars    []*PathVar
 	Queries     []*Query
+	Headers     []*Header
 	RequestBody string
 	Response    string
 }
 
-type Validations map[string]string
-
 type PathVar struct {
-	Validations
-
 	Name   string
 	Type   string
 	Field  string
@@ -81,8 +78,12 @@ type PathVar struct {
 }
 
 type Query struct {
-	Validations
+	Name  string
+	Type  string
+	Field string
+}
 
+type Header struct {
 	Name  string
 	Type  string
 	Field string
@@ -346,6 +347,12 @@ func (p *Parser) parseParam(method *ServiceMethod, param *oapi.Parameter) error 
 			Name:  name,
 			Type:  ty,
 			Field: strings.Title(name),
+		})
+	case "header":
+		method.Headers = append(method.Headers, &Header{
+			Name:  name,
+			Type:  ty,
+			Field: strings.ReplaceAll(strings.Title(name), "-", ""),
 		})
 	default:
 		return fmt.Errorf("%w: %s", ErrParserBadParamKind, in)

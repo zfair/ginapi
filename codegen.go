@@ -54,6 +54,15 @@ type {{.Name}}Queries struct {
 }
 {{end}}
 
+{{if .Headers}}
+// {{.Name}}Headers is the header parameters of {{.Name}}.
+type {{.Name}}Headers struct {
+{{range .Headers -}}
+	{{.Field}} {{.Type}} ` + "`header:\"{{.Name}}\"`" + `
+{{end}}
+}
+{{end}}
+
 {{end}}
 
 // {{.Name}} {{.Comment}}
@@ -63,6 +72,7 @@ type {{.Name}} interface {
 	{{.Name}}(
 		{{- if .PathVars}}vars {{.Name}}PathVars,{{end -}}
 		{{- if .Queries}}q {{.Name}}Queries,{{end -}}
+		{{- if .Headers}}h {{.Name}}Headers,{{end -}}
 		{{- with .RequestBody}}req {{.}},{{end -}}
 	) {{if .Response}} ({{.Response}}, error) {{else}} error {{end}}
 {{end}}
@@ -87,6 +97,7 @@ type todo{{.Name}} struct{}
 func (todo{{$.Name}}) {{.Name}}(
 	{{- if .PathVars}}{{.Name}}PathVars,{{end -}}
 	{{- if .Queries}}{{.Name}}Queries,{{end -}}
+	{{- if .Headers}}{{.Name}}Headers,{{end -}}
 	{{- with .RequestBody}}{{.}},{{end -}}
 ) {{if .Response}} ({{.Response}}, error) {{else}} error {{end}} {
 	panic("not implemented")
@@ -115,6 +126,13 @@ func defaultHandle{{.Name}}(c *gin.Context) {
 	}
 {{end}}
 
+{{if .Headers}}
+	h := {{.Name}}Headers{}
+	if err := c.ShouldBindHeader(&h); err != nil {
+		panic(err)
+	}
+{{end}}
+
 {{with .RequestBody}}
 	req := {{.}}{}
 	if err := c.ShouldBind(&req); err != nil {
@@ -128,6 +146,9 @@ func defaultHandle{{.Name}}(c *gin.Context) {
 {{end -}}
 {{if .Queries -}}
 		q,
+{{end -}}
+{{if .Headers -}}
+		h,
 {{end -}}
 {{with .RequestBody -}}
 		req,

@@ -50,7 +50,7 @@ type DefaultPetsService struct{}
 
 // Methods with queries/path variables/request bodies as arguments, responses as
 // return value. Not just empty handler functions :(.
-func (p *DefaultPetsService) CreatePets() (*ginapi.Result, error) {
+func (p *DefaultPetsService) CreatePets(h ginapi.CreatePetsHeaders) (*ginapi.Result, error) {
 	panic("TODO")
 }
 

@@ -52,6 +52,14 @@ paths:
       operationId: createPets
       tags:
         - pets
+      parameters:
+        - name: x-tag
+          # Test the arguments in headers.
+          in: header
+          required: false
+          description: Pet tag
+          schema:
+            type: string
       responses:
         '200':
           description: Expected response to a valid request

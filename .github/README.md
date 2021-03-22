@@ -61,6 +61,10 @@ func (p *DefaultPetsService) ListPets(q ginapi.ListPetsQueries) (*ginapi.Pets, e
 func (p *DefaultPetsService) ShowPetById(vars ginapi.ShowPetByIdPathVars) (*ginapi.Pet, error) {
 	panic("TODO")
 }
+
+func (p *DefaultPetsService) DeletePet(vars ginapi.DeletePetPathVars) error {
+	panic("TODO")
+}
 ```
 
 ## How is it opinionated?

@@ -103,3 +103,8 @@ func (p *DefaultPetsService) ShowPetById(vars ginapi.ShowPetByIdPathVars) (*gina
 	}
 	return nil, fmt.Errorf("not found: %s", vars.PetId)
 }
+
+func (p *DefaultPetsService) DeletePet(vars ginapi.DeletePetPathVars) error {
+	p.m.Delete(vars.PetId)
+	return nil
+}

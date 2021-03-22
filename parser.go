@@ -393,7 +393,8 @@ func (p *Parser) parseResponses(method *ServiceMethod, resps oapi.Responses) err
 	// have sealed classes in Go :(
 	resp := resps.Get(200)
 	if resp == nil {
-		return fmt.Errorf("%w: no 200 response given in method %q", ErrParserNoSchema, m)
+		// It's okay for this method to return a single error, without schemas.
+		return nil
 	}
 
 	// TODO: Only supports JSON now.

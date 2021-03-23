@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	mimeJSON = "application/json"
+	mimeJSON        = "application/json"
+	mimeOctetStream = "application/octet-stream"
 )
 
 var (
@@ -366,14 +367,18 @@ func (p *Parser) parseBody(method *ServiceMethod, body *oapi.RequestBodyRef) err
 		return nil
 	}
 
-	m := method.Name
-
-	// TODO: Only supports JSON now.
-	jsonSchema := body.Value.Content.Get(mimeJSON)
-	if jsonSchema == nil {
-		return fmt.Errorf("%w: request body of method %q", ErrParserNoSchema, m)
+	// TODO: Only supports JSON and binary now.
+	if schema := body.Value.Content.Get(mimeJSON); schema != nil {
+		return p.parseJsonBody(method, schema.Schema.Ref)
+	} else if schema := body.Value.Content.Get(mimeOctetStream); schema != nil {
+		return p.parseBinaryBody(method)
 	}
-	ref := jsonSchema.Schema.Ref
+
+	return fmt.Errorf("%w: request body of method %q", ErrParserNoSchema, method.Name)
+}
+
+func (p *Parser) parseJsonBody(method *ServiceMethod, ref string) error {
+	m := method.Name
 
 	if ref == "" {
 		return fmt.Errorf("%w: request body of method %q", ErrUtilUseRef, m)
@@ -389,6 +394,11 @@ func (p *Parser) parseBody(method *ServiceMethod, body *oapi.RequestBodyRef) err
 	}
 
 	method.RequestBody = t
+	return nil
+}
+
+func (p *Parser) parseBinaryBody(method *ServiceMethod) error {
+	method.RequestBody = "[]byte"
 	return nil
 }
 

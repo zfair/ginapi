@@ -114,3 +114,18 @@ func (p *DefaultPetsService) DeletePet(vars ginapi.DeletePetPathVars) error {
 	p.m.Delete(vars.PetId)
 	return nil
 }
+
+func (p *DefaultPetsService) UploadFile(
+	vars ginapi.UploadFilePathVars,
+	q ginapi.UploadFileQueries,
+	req []byte,
+) (*ginapi.Result, error) {
+	petID := vars.PetId
+	fmt.Printf("petID: %s, fileLen: %d\n", petID, len(req))
+
+	if metadata := q.AdditionalMetadata; metadata != nil {
+		fmt.Printf("petID: %s, metadata: %s\n", petID, *metadata)
+	}
+
+	return &ginapi.Result{Message: "ok"}, nil
+}

@@ -27,6 +27,7 @@ type {{.Target}} {{.Source}}
 	serviceFileTmpl = tmplFileHeader + `
 
 import (
+	"io/ioutil"
 	"net/http"
 
 	"github.com/anqur/ginapi/utils/detail"
@@ -134,10 +135,17 @@ func defaultHandle{{.Name}}(c *gin.Context) {
 {{end}}
 
 {{with .RequestBody}}
+{{if eq . "[]byte"}}
+	req, err := ioutil.ReadAll(c.Request.Body)
+	if err != nil {
+		panic(err)
+	}
+{{else}}
 	req := {{.}}{}
 	if err := c.ShouldBind(&req); err != nil {
 		panic(err)
 	}
+{{end}}
 {{end}}
 
 	{{if .Response}}resp, err := {{else}} err = {{end}} default{{$.Name}}.{{.Name}}(

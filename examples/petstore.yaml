@@ -54,7 +54,6 @@ paths:
         - pets
       parameters:
         - name: x-tag
-          # Test the arguments in headers.
           in: header
           required: false
           description: Pet tag
@@ -108,6 +107,38 @@ paths:
       responses:
         '400':
           description: Invalid pet value
+  /pet/{petId}/uploadImage:
+    post:
+      tags:
+        - pets
+      summary: Uploads an image
+      operationId: uploadFile
+      parameters:
+        - name: petId
+          in: path
+          description: ID of pet to update
+          required: true
+          schema:
+            type: string
+        - name: additionalMetadata
+          in: query
+          description: Additional Metadata
+          required: false
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Result'
 components:
   schemas:
     Pet:

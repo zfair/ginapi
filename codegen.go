@@ -71,6 +71,7 @@ type {{.Name}} interface {
 {{range .Methods -}}
 	// {{.Name}} {{.Comment}}
 	{{.Name}}(
+		{{- if .HasGinCtx}}c *gin.Context,{{end -}}
 		{{- if .PathVars}}vars {{.Name}}PathVars,{{end -}}
 		{{- if .Queries}}q {{.Name}}Queries,{{end -}}
 		{{- if .Headers}}h {{.Name}}Headers,{{end -}}
@@ -96,6 +97,7 @@ type todo{{.Name}} struct{}
 
 {{range .Methods}}
 func (todo{{$.Name}}) {{.Name}}(
+	{{- if .HasGinCtx}}*gin.Context,{{end -}}
 	{{- if .PathVars}}{{.Name}}PathVars,{{end -}}
 	{{- if .Queries}}{{.Name}}Queries,{{end -}}
 	{{- if .Headers}}{{.Name}}Headers,{{end -}}
@@ -149,6 +151,9 @@ func defaultHandle{{.Name}}(c *gin.Context) {
 {{end}}
 
 	{{if .Response}}resp, err := {{else}} err = {{end}} default{{$.Name}}.{{.Name}}(
+{{if .HasGinCtx -}}
+		c,
+{{end -}}
 {{if .PathVars -}}
 		vars,
 {{end -}}

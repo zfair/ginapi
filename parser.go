@@ -35,6 +35,7 @@ type Parser struct {
 	specpath string
 
 	vars       map[string]string
+	isGinCtx   bool
 	rootURL    string
 	modelPaths []string
 	methods    map[string]*ServiceMethod
@@ -64,6 +65,7 @@ type ServiceMethod struct {
 
 	Path        string
 	HttpMethod  string
+	HasGinCtx   bool
 	PathVars    []*PathVar
 	Queries     []*Query
 	Headers     []*Header
@@ -297,6 +299,7 @@ func (p *Parser) parseOperation(op *oapi.Operation, path, httpMethod string) err
 	method.Comment = op.Summary
 	method.Path = p.rootURL + OapiToGinPathParam(path)
 	method.HttpMethod = httpMethod
+	method.HasGinCtx = p.isGinCtx
 
 	for _, param := range op.Parameters {
 		if err := p.parseParam(method, param.Value); err != nil {

@@ -9,7 +9,6 @@ import (
 
 var (
 	ErrCliNoInpath = errors.New("expected input path")
-	ErrCliBadMode  = errors.New("bad codegen mode, expected server/client")
 )
 
 type GinapiCli struct {
@@ -45,6 +44,7 @@ func (c *GinapiCli) Parse() *GinapiCli {
 	flag.BoolVar(&c.isVersion, "v", false, "show version")
 	flag.StringVar(&c.inpath, "i", "", "path to OpenAPI generated code as input")
 	flag.StringVar(&c.rawVars, "vars", "", "server variables as JSON")
+	flag.BoolVar(&c.isGinCtx, "ctx", false, "enable `*gin.Context` as an argument")
 
 	flag.Parse()
 	return c

@@ -16,7 +16,7 @@ import (
 )
 
 //go:generate docker run --rm -v $PWD:/local openapitools/openapi-generator-cli generate -i /local/petstore.yaml -g go-gin-server -o /local/generated
-//go:generate ginapi -i generated -vars {"server":"http://localhost:8088"}
+//go:generate ginapi -i generated -vars {"server":"http://localhost:8088"} -ctx
 //go:generate statik -src=. -dest=./generated -include=petstore.yaml
 func main() {
 	ginapi.RegisterPetsService(
@@ -66,7 +66,7 @@ func recovery() gin.HandlerFunc {
 	}
 }
 
-func (p *DefaultPetsService) CreatePets(h ginapi.CreatePetsHeaders) (*ginapi.Result, error) {
+func (p *DefaultPetsService) CreatePets(_ *gin.Context, h ginapi.CreatePetsHeaders) (*ginapi.Result, error) {
 	id := uuid.NewString()
 	pet := &ginapi.Pet{
 		Id:   atomic.AddInt64(&p.c, 1),
@@ -80,7 +80,7 @@ func (p *DefaultPetsService) CreatePets(h ginapi.CreatePetsHeaders) (*ginapi.Res
 	return &ginapi.Result{Message: "ok"}, nil
 }
 
-func (p *DefaultPetsService) ListPets(q ginapi.ListPetsQueries) (*ginapi.Pets, error) {
+func (p *DefaultPetsService) ListPets(_ *gin.Context, q ginapi.ListPetsQueries) (*ginapi.Pets, error) {
 	var n int32
 	var ret ginapi.Pets
 
@@ -102,7 +102,7 @@ func (p *DefaultPetsService) ListPets(q ginapi.ListPetsQueries) (*ginapi.Pets, e
 	return &ret, nil
 }
 
-func (p *DefaultPetsService) ShowPetById(vars ginapi.ShowPetByIdPathVars) (*ginapi.Pet, error) {
+func (p *DefaultPetsService) ShowPetById(_ *gin.Context, vars ginapi.ShowPetByIdPathVars) (*ginapi.Pet, error) {
 	pet, ok := p.m.Load(vars.PetId)
 	if ok {
 		return pet.(*ginapi.Pet), nil
@@ -110,12 +110,13 @@ func (p *DefaultPetsService) ShowPetById(vars ginapi.ShowPetByIdPathVars) (*gina
 	return nil, fmt.Errorf("not found: %s", vars.PetId)
 }
 
-func (p *DefaultPetsService) DeletePet(vars ginapi.DeletePetPathVars) error {
+func (p *DefaultPetsService) DeletePet(_ *gin.Context, vars ginapi.DeletePetPathVars) error {
 	p.m.Delete(vars.PetId)
 	return nil
 }
 
 func (p *DefaultPetsService) UploadFile(
+	_ *gin.Context,
 	vars ginapi.UploadFilePathVars,
 	q ginapi.UploadFileQueries,
 	req []byte,

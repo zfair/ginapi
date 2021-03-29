@@ -30,17 +30,24 @@ var (
 )
 
 type Parser struct {
+	// CLI-related info.
+
 	inpath   string
 	srcpath  string
 	specpath string
 
-	vars       map[string]string
-	isGinCtx   bool
+	vars            map[string]string
+	isGinCtx        bool
+	ignoredServices map[string]struct{}
+
+	// Some meta info.
+
 	rootURL    string
 	modelPaths []string
 	methods    map[string]*ServiceMethod
 
-	// Used for template rendering, the 'true' AST.
+	// Used for template rendering, the 'true' ASTs.
+
 	Typedefs []Typedef
 	Services map[string]*ServiceInfo
 }
@@ -165,6 +172,10 @@ func (path ServicePath) GetServiceName() string {
 
 func (p *Parser) parseMethodNames(path string, file *goast.File) error {
 	serviceName := ServicePath(path).GetServiceName()
+	if _, ok := p.ignoredServices[serviceName]; ok {
+		return nil
+	}
+
 	serviceInfo := &ServiceInfo{
 		Filepath: path,
 		Name:     serviceName,
@@ -256,6 +267,10 @@ func (p *Parser) parseRootURL(servers []*oapi.Server) error {
 func (p *Parser) parseServiceComments(tags oapi.Tags) error {
 	for _, tag := range tags {
 		serviceName := OapiTagToServiceName(tag.Name)
+		if _, ok := p.ignoredServices[serviceName]; ok {
+			continue
+		}
+
 		service, ok := p.Services[serviceName]
 		if !ok {
 			return fmt.Errorf("%w: service %q not found in generated code",

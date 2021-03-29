@@ -16,7 +16,7 @@ import (
 )
 
 //go:generate docker run --rm -v $PWD:/local openapitools/openapi-generator-cli generate -i /local/petstore.yaml -g go-gin-server -o /local/generated
-//go:generate ginapi -i generated -vars {"server":"http://localhost:8088"} -ctx
+//go:generate ginapi -i generated -vars {"server":"http://localhost:8088"} -ctx -ignored-tags ignored
 //go:generate statik -src=. -dest=./generated -include=petstore.yaml
 func main() {
 	ginapi.RegisterPetsService(

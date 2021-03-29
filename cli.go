@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"strings"
 )
 
 var (
@@ -16,9 +17,10 @@ type GinapiCli struct {
 
 	version string
 
-	isHelp    bool
-	isVersion bool
-	rawVars   string
+	isHelp      bool
+	isVersion   bool
+	rawVars     string
+	ignoredTags string
 }
 
 func NewCli() *GinapiCli {
@@ -45,6 +47,7 @@ func (c *GinapiCli) Parse() *GinapiCli {
 	flag.StringVar(&c.inpath, "i", "", "path to OpenAPI generated code as input")
 	flag.StringVar(&c.rawVars, "vars", "", "server variables as JSON")
 	flag.BoolVar(&c.isGinCtx, "ctx", false, "enable `*gin.Context` as an argument")
+	flag.StringVar(&c.ignoredTags, "ignored-tags", "", "comma-separated list of ignored tags")
 
 	flag.Parse()
 	return c
@@ -58,6 +61,14 @@ func (c *GinapiCli) validate() error {
 		if err := json.Unmarshal([]byte(raw), &c.vars); err != nil {
 			return err
 		}
+	}
+	if ignoredTags := c.ignoredTags; ignoredTags != "" {
+		ignoredList := strings.Split(ignoredTags, ",")
+		ignoredServices := map[string]struct{}{}
+		for _, tag := range ignoredList {
+			ignoredServices[OapiTagToServiceName(tag)] = struct{}{}
+		}
+		c.Codegen.ignoredServices = ignoredServices
 	}
 	return nil
 }

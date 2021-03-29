@@ -13,6 +13,11 @@ servers:
         enum:
           - http://localhost:8088
           - http://petstore.swagger.io
+tags:
+  - name: pets
+    description: The pet store
+  - name: ignored
+    description: An ignored tag
 paths:
   /pets:
     get:
@@ -111,6 +116,7 @@ paths:
     post:
       tags:
         - pets
+        - ignored
       summary: Uploads an image
       operationId: uploadFile
       parameters:
